@@ -3,11 +3,12 @@
 
 use glam::IVec2;
 use log::{debug, error};
+use strum::IntoEnumIterator;
 use std::env;
 use pixels::{Error, Pixels, SurfaceTexture};
 use winit::{
     dpi::LogicalSize,
-    event::{Event, VirtualKeyCode},
+    event::{Event, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -20,7 +21,7 @@ const HEIGHT: u32 = 256*2;
 const SCALE: f64 = 2.0;
 
 fn main() -> Result<(), Error> {
-    env::set_var("RUST_LOG", "falling-sand-pixels");
+    //env::set_var("RUST_LOG", "falling_rust=debug");
     env_logger::init();
     let event_loop = EventLoop::new();
     let mut input = WinitInputHelper::new();
@@ -109,7 +110,7 @@ fn main() -> Result<(), Error> {
             if input.mouse_pressed(0) {
                 //println!("Mouse click at {:?}", mouse_cell);
                 let pos = IVec2::new(mouse_cell.0 as i32, mouse_cell.1 as i32);
-                life.set_cell_material(pos, Material::Sand);
+                life.draw_brush(pos, life.get_material_from_brushindex());
             } else {
                 let release = input.mouse_released(0);
                 let held = input.mouse_held(0);
@@ -123,7 +124,7 @@ fn main() -> Result<(), Error> {
                         mouse_prev_cell.1,
                         mouse_cell.0,
                         mouse_cell.1,
-                        Material::Sand,
+                        life.get_material_from_brushindex(),
                     );
                 }
                 // If they let go or are otherwise not clicking anymore, stop drawing.
@@ -139,6 +140,27 @@ fn main() -> Result<(), Error> {
                 life.update();
             }
             window.request_redraw();
+        };
+
+        if let Event::WindowEvent {event, .. } = event {
+            match event {
+                WindowEvent::MouseWheel { delta, ..} => match delta {
+                    winit::event::MouseScrollDelta::LineDelta(x, y) => {
+                        if y > 0.0 {
+                            life.brush_material_index += 1;
+                            if life.brush_material_index >= Material::iter().count() {
+                                life.brush_material_index = 0;
+                            };
+                        } else if y < 0.0 {
+                            if life.brush_material_index == 0 {
+                                life.brush_material_index = Material::iter().count() - 1;
+                            };
+                        }
+                    },
+                    _ => (),
+                },
+                _ => (),
+            }
         }
     });
 }

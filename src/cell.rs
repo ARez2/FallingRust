@@ -1,6 +1,8 @@
 use pixels::wgpu::Color;
 use crate::matrix::Matrix;
 use glam::IVec2;
+use strum_macros::EnumIter;
+
 
 #[derive(Clone, Copy)]
 pub enum MaterialType {
@@ -13,7 +15,7 @@ pub enum MaterialType {
 
 
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, EnumIter)]
 pub enum Material {
     Empty,
     Sand,

@@ -1,6 +1,8 @@
 use glam::IVec2;
+use log::warn;
 use pixels::wgpu::Color;
 use rand::Rng;
+use strum::IntoEnumIterator;
 
 use crate::{Cell, cell::{Material}, Chunk, chunk};
 
@@ -33,6 +35,8 @@ pub struct Matrix {
     pub chunks: Vec<Vec<Chunk>>,
 
     pub debug_draw: bool,
+    pub brush_size: u8,
+    pub brush_material_index: usize,
 }
 
 impl Matrix {
@@ -69,7 +73,9 @@ impl Matrix {
 
             cells,
             chunks,
-            debug_draw: true,
+            debug_draw: false,
+            brush_size: 4,
+            brush_material_index: 1,
         }
     }
 
@@ -110,6 +116,9 @@ impl Matrix {
 
 
 
+    fn is_in_bounds(&self, pos: IVec2) -> bool {
+        (pos.x >= 0 && pos.x < self.width as i32) && (pos.y >= 0 && pos.y < self.height as i32)
+    }
 
     pub fn get_cell(&self, pos: IVec2) -> Option<Cell> {
         if (pos.x < 0 || pos.x >= self.width as i32) || (pos.y < 0 || pos.y >= self.height as i32) {
@@ -126,17 +135,32 @@ impl Matrix {
     }
 
     pub fn set_cell(&mut self, pos: IVec2, mut cell: Cell) {
-        if (pos.x < 0 || pos.x > self.width as i32) || (pos.y < 0 || pos.y > self.height as i32) {
+        if !self.is_in_bounds(pos) {
+            warn!("Pos out of range");
             return;
         };
-        let old_pos = cell.pos;
+        if pos != cell.pos {
+            let old_pos = cell.pos;
+            let old_idx = self.grid_idx(old_pos.x, old_pos.y).unwrap();
+            self.cells[old_idx] = Cell::new(old_pos);
+        };
         cell.pos = pos;
         let idx = self.grid_idx(pos.x, pos.y).unwrap();
-        let old_idx = self.grid_idx(old_pos.x, old_pos.y).unwrap();
         self.cells[idx] = cell;
-        self.cells[old_idx] = Cell::new(old_pos);
-
         self.set_chunk_cluster_active(pos);
+    }
+
+    pub fn draw_brush(&mut self, pos: IVec2, material: Material) {
+        let bs = self.brush_size as i32;
+        for y in (pos.y-bs..pos.y+bs).rev() {
+            for x in pos.x-bs..pos.x+bs {
+                self.set_cell_material(IVec2::new(x, y), material);
+            };
+        };
+    }
+
+    pub fn get_material_from_brushindex(&self) -> Material {
+        Material::iter().nth(self.brush_material_index).unwrap()
     }
 
 
@@ -216,10 +240,9 @@ impl Matrix {
         let x0 = x0.max(0).min(self.width as isize);
         let y0 = y0.max(0).min(self.height as isize);
         for (x, y) in line_drawing::Bresenham::new((x0, y0), (x1, y1)) {
-            if let Some(i) = self.grid_idx(x, y) {
-                let pos = IVec2::new(x as i32, y as i32);
-                self.cells[i] = Cell::new_material(pos, material);
-                self.set_chunk_active(pos);
+            let pos = IVec2::new(x as i32, y as i32);
+            if self.is_in_bounds(pos) {
+                self.draw_brush(pos, material);
             } else {
                 break;
             }
