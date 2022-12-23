@@ -13,7 +13,7 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
-use falling_sand_pixels::{Matrix, Cell, cell::Material};
+use falling_rust::{Matrix, Cell, cell::Material};
 
 const WIDTH: u32 = 256*2;
 const HEIGHT: u32 = 256*2;
