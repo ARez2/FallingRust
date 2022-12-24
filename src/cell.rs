@@ -130,7 +130,7 @@ impl Cell {
     }
 
     pub fn step_movable_solid(&mut self, matrix: &mut Matrix) -> bool {
-        let bottom = self.pos + IVec2::new(self.velocity.x.round() as i32, self.velocity.y.round() as i32);
+        let bottom = self.pos + IVec2::new(0, self.velocity.y.round() as i32);
         if self.try_move(matrix, bottom, false) {
             return true;
         };
@@ -142,21 +142,23 @@ impl Cell {
                 fac = -1.0;
             };
         };
-        self.velocity.x = (self.velocity.y / 5.0) * fac;
-        self.velocity.y = 0.0;
+        self.velocity.x = (self.velocity.y / 2.0) * fac;
+        self.velocity.y *= -0.1;
         
-        let bottom_left = self.pos + IVec2::new(-1 * self.material.get_dispersion() as i32, 1);
-        let bottom_right = self.pos + IVec2::new(1 * self.material.get_dispersion() as i32, 1);
+        let x_vel_check = self.velocity.x.round().abs().max(1.0) as i32;
+        let disp = self.material.get_dispersion() as i32;
+        let bottom_left = self.pos + IVec2::new(-1 * disp * x_vel_check, 1);
+        let bottom_right = self.pos + IVec2::new(1 * disp * x_vel_check, 1);
         let mut first = bottom_left;
         let mut second = bottom_right;
         if rand::random() {
             first = bottom_right;
             second = bottom_left
         };
-        if self.try_move(matrix, first, false) {
+        if self.try_move(matrix, first, true) {
             return true;
         };
-        if self.try_move(matrix, second, false) {
+        if self.try_move(matrix, second, true) {
             return true;
         };
         return false;
@@ -174,26 +176,23 @@ impl Cell {
     }
 
 
-    fn try_move(&mut self, matrix: &mut Matrix, to_pos: IVec2, debug: bool) -> bool {
+    fn try_move(&mut self, matrix: &mut Matrix, to_pos: IVec2, diagonal: bool) -> bool {
         let mut swapped = false;
         let mut last_possible_cell: Option<_> = None;
         
         let x0 = self.pos.x.max(0).min(matrix.width as i32);
         let y0 = self.pos.y.max(0).min(matrix.height as i32);
-        for (x, y) in line_drawing::Bresenham::new((x0, y0), (to_pos.x, to_pos.y)) {
+        for (x, y) in line_drawing::WalkGrid::new((x0, y0), (to_pos.x, to_pos.y)) {
             let cur_pos = IVec2::new(x as i32, y as i32);
             if cur_pos == self.pos {
                 continue;
             };
             let target_cell = matrix.get_cell(cur_pos);
             if let Some(c) = target_cell {
-                if debug {
-                    println!("Target: {},   Cell: {:?}", cur_pos, c.material);
-                };
                 if c.material.get_density() < self.material.get_density() {
                     last_possible_cell = Some(c.clone());
                 };
-                if last_possible_cell.is_none() {
+                if last_possible_cell.is_none() && !diagonal {
                     break;
                 };
             } else {
