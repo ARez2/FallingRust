@@ -1,5 +1,7 @@
+use std::path::Iter;
+
 use glam::IVec2;
-use log::warn;
+use log::{warn, debug};
 use pixels::wgpu::Color;
 use rand::Rng;
 use strum::IntoEnumIterator;
@@ -37,6 +39,7 @@ pub struct Matrix {
     pub debug_draw: bool,
     pub brush_size: u8,
     pub brush_material_index: usize,
+    pub update_left: bool,
 }
 
 impl Matrix {
@@ -74,8 +77,9 @@ impl Matrix {
             cells,
             chunks,
             debug_draw: false,
-            brush_size: 4,
+            brush_size: 1,
             brush_material_index: 1,
+            update_left: true,
         }
     }
 
@@ -120,41 +124,57 @@ impl Matrix {
         (pos.x >= 0 && pos.x < self.width as i32) && (pos.y >= 0 && pos.y < self.height as i32)
     }
 
-    pub fn get_cell(&self, pos: IVec2) -> Option<Cell> {
+    pub fn get_cell(&self, pos: IVec2) -> Option<&Cell> {
         if (pos.x < 0 || pos.x >= self.width as i32) || (pos.y < 0 || pos.y >= self.height as i32) {
             None
         } else {
-            Some(self.cells[self.grid_idx(pos.x, pos.y).unwrap()])
+            Some(&self.cells[self.grid_idx(pos.x, pos.y).unwrap()])
         }
-
+    }
+    pub fn get_cell_mut(&mut self, pos: IVec2) -> Option<&mut Cell> {
+        if (pos.x < 0 || pos.x >= self.width as i32) || (pos.y < 0 || pos.y >= self.height as i32) {
+            None
+        } else {
+            let i = self.grid_idx(pos.x, pos.y).unwrap();
+            Some(&mut self.cells[i])
+        }
     }
 
-    pub fn set_cell_material(&mut self, pos: IVec2, material: Material) {
-        let cell = Cell::new_material(pos, material);
-        self.set_cell(pos, cell);
+
+    pub fn set_cell_material(&mut self, pos: IVec2, material: Material, swap: bool) {
+        let mut cell = Cell::new_material(pos, material);
+        self.set_cell(pos, &mut cell, swap);
     }
 
-    pub fn set_cell(&mut self, pos: IVec2, mut cell: Cell) {
+    pub fn set_cell(&mut self, pos: IVec2, cell: &mut Cell, swap: bool) {
         if !self.is_in_bounds(pos) {
             warn!("Pos out of range");
             return;
         };
-        if pos != cell.pos {
-            let old_pos = cell.pos;
-            let old_idx = self.grid_idx(old_pos.x, old_pos.y).unwrap();
+        let new_idx = self.grid_idx(pos.x, pos.y).unwrap();
+        let old_pos = cell.pos;
+        let old_idx = self.grid_idx(old_pos.x, old_pos.y).unwrap();
+
+        let mut target_cell = self.get_cell_mut(pos).unwrap().clone();
+        if swap && target_cell.material != Material::Empty {
+            self.cells[old_idx] = target_cell;
+            target_cell.pos = old_pos;
+            self.set_chunk_active(old_pos);
+        } else {
             self.cells[old_idx] = Cell::new(old_pos);
         };
         cell.pos = pos;
-        let idx = self.grid_idx(pos.x, pos.y).unwrap();
-        self.cells[idx] = cell;
+        self.cells[new_idx] = *cell;
+        
         self.set_chunk_cluster_active(pos);
+        self.set_chunk_cluster_active(old_pos);
     }
 
     pub fn draw_brush(&mut self, pos: IVec2, material: Material) {
         let bs = self.brush_size as i32;
         for y in (pos.y-bs..pos.y+bs).rev() {
             for x in pos.x-bs..pos.x+bs {
-                self.set_cell_material(IVec2::new(x, y), material);
+                self.set_cell_material(IVec2::new(x, y), material, false);
             };
         };
     }
@@ -188,32 +208,64 @@ impl Matrix {
 
         let mut current_chunk = *self.get_chunk_for_pos(IVec2::new(0, h - 1)).unwrap();
         for y in (0..h).rev() {
-            for x in 0..w {
-                let cur_pos = IVec2::new(x, y);
-                //println!("{}", cur_pos);
-                let cur_chunk = self.get_chunk_for_pos(cur_pos);
-                if let Some(cur_chunk) = cur_chunk {
-                    if *cur_chunk != current_chunk {
-                        current_chunk = *cur_chunk;
-                    }
+            if self.update_left {
+                for x in (0..w).rev() {
+                    self.step_all(x, y, current_chunk, w);
                 }
-
-                if current_chunk.should_step {
-                    let idx = x + y * w;
-                    let mut cell = self.cells[idx as usize];
-                    if cell.material == Material::Empty {
-                        continue;
-                    };
-                    if !cell.processed_this_frame {
-                        cell.update(self);
-                        cell.processed_this_frame = true;
-                    };
-                };
-            }
+            } else {
+                for x in (0..w) {
+                    self.step_all(x, y, current_chunk, w);
+                }
+            };
+            self.update_left = !self.update_left;
         };
         //self.cells = self.scratch_cells.clone();
         //std::mem::replace(&mut self.cells, self.scratch_cells);
     }
+
+
+    fn step_all(&mut self, x: i32, y: i32, mut current_chunk: Chunk, w: i32) {
+        let cur_pos = IVec2::new(x, y);
+        //println!("{}", cur_pos);
+        let cur_chunk = self.get_chunk_for_pos(cur_pos);
+        if let Some(cur_chunk) = cur_chunk {
+            if *cur_chunk != current_chunk {
+                current_chunk = *cur_chunk;
+            }
+        }
+
+        if current_chunk.should_step {
+            let idx = x + y * w;
+            let mut cell = self.cells[idx as usize];
+            if cell.material == Material::Empty {
+                return;
+            };
+            if !cell.processed_this_frame {
+                cell.update(self);
+                cell.processed_this_frame = true;
+            };
+        };let cur_pos = IVec2::new(x, y);
+        //println!("{}", cur_pos);
+        let cur_chunk = self.get_chunk_for_pos(cur_pos);
+        if let Some(cur_chunk) = cur_chunk {
+            if *cur_chunk != current_chunk {
+                current_chunk = *cur_chunk;
+            }
+        }
+
+        if current_chunk.should_step {
+            let idx = x + y * w;
+            let mut cell = self.cells[idx as usize];
+            if cell.material == Material::Empty {
+                return;
+            };
+            if !cell.processed_this_frame {
+                cell.update(self);
+                cell.processed_this_frame = true;
+            };
+        };
+    }
+
 
     pub fn draw(&self, screen: &mut [u8]) {
         debug_assert_eq!(screen.len(), 4 * self.cells.len());

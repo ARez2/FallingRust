@@ -16,9 +16,9 @@ use winit_input_helper::WinitInputHelper;
 
 use falling_rust::{Matrix, Cell, cell::Material};
 
-const WIDTH: u32 = 256*2;
-const HEIGHT: u32 = 256*2;
-const SCALE: f64 = 2.0;
+const WIDTH: u32 = 16*15;
+const HEIGHT: u32 = 16*15;
+const SCALE: f64 = 5.0;
 
 fn main() -> Result<(), Error> {
     //env::set_var("RUST_LOG", "falling_rust=debug");
@@ -83,6 +83,12 @@ fn main() -> Result<(), Error> {
                 life.debug_draw = !life.debug_draw;
                 println!("Debug: {}", life.debug_draw);
             }
+            if input.key_pressed(VirtualKeyCode::Up) {
+                life.brush_size = life.brush_size.saturating_add(1);
+            }
+            if input.key_pressed(VirtualKeyCode::Down) {
+                life.brush_size = life.brush_size.saturating_sub(1);
+            }
             // Handle mouse. This is a bit involved since support some simple
             // line drawing (mostly because it makes nice looking patterns).
             let (mouse_cell, mouse_prev_cell) = input
@@ -114,8 +120,6 @@ fn main() -> Result<(), Error> {
             } else {
                 let release = input.mouse_released(0);
                 let held = input.mouse_held(0);
-                debug!("Draw at {:?} => {:?}", mouse_prev_cell, mouse_cell);
-                debug!("Mouse held {:?}, release {:?}", held, release);
                 // If they either released (finishing the drawing) or are still
                 // in the middle of drawing, keep going.
                 if release || held {
@@ -129,7 +133,7 @@ fn main() -> Result<(), Error> {
                 }
                 // If they let go or are otherwise not clicking anymore, stop drawing.
                 if release || !held {
-                    debug!("Draw end");
+                    //debug!("Draw end");
                 }
             }
             // Resize the window

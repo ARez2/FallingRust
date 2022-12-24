@@ -1,6 +1,8 @@
+use std::fmt::Display;
+
 use pixels::wgpu::Color;
 use crate::matrix::Matrix;
-use glam::IVec2;
+use glam::{IVec2, Vec2};
 use strum_macros::EnumIter;
 
 
@@ -15,13 +17,23 @@ pub enum MaterialType {
 
 
 
-#[derive(Clone, Copy, PartialEq, EnumIter)]
+#[derive(Clone, Copy, PartialEq, EnumIter, Debug)]
 pub enum Material {
     Empty,
     Sand,
     Water,
 }
+
 impl Material {
+    pub fn get_type(&self) -> MaterialType {
+        match self {
+            Material::Empty => MaterialType::Empty,
+            Material::Sand => MaterialType::MovableSolid,
+            Material::Water => MaterialType::Liquid,
+            _ => MaterialType::Solid,
+        }
+    }
+
     pub fn get_color(&self) -> Color {
         match self {
             Material::Empty => Color::BLACK,
@@ -38,21 +50,29 @@ impl Material {
         }
     }
 
-    pub fn get_type(&self) -> MaterialType {
+    pub fn get_density(&self) -> u64 {
         match self {
-            Material::Empty => MaterialType::Empty,
-            Material::Sand => MaterialType::MovableSolid,
-            Material::Water => MaterialType::Liquid,
-            _ => MaterialType::Solid,
+            Material::Empty => 0,
+            Material::Sand => 300,
+            Material::Water => 1,
+        }
+    }
+
+    pub fn get_dispersion(&self) -> u8 {
+        match self {
+            Material::Empty => 0,
+            Material::Sand => 1,
+            Material::Water => 5,
         }
     }
 }
 
 
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct Cell {
     pub pos: IVec2,
+    pub velocity: Vec2,
     pub hp: u64,
     pub color: Color,
     pub material: Material,
@@ -65,6 +85,7 @@ impl Cell {
     pub fn new(pos: IVec2) -> Self {
         Self {
             pos,
+            velocity: Vec2::ZERO,
             material: Material::Empty,
             color: Material::Empty.get_color(),
             hp: Material::Empty.get_hp(),
@@ -75,46 +96,123 @@ impl Cell {
     pub fn new_material(pos: IVec2, material: Material) -> Self {
         Self {
             pos,
-            material: material,
+            velocity: Vec2::ZERO,
+            material,
             hp: material.get_hp(),
             color: material.get_color(),
             processed_this_frame: false,
         }
     }
 
-    pub fn update(&mut self, matrix: &mut Matrix) {
-        match self.material.get_type() {
+    pub fn update(&mut self, matrix: &mut Matrix) -> bool {
+        self.velocity += Vec2::new(0.0, 0.5);
+        let mut did_change = match self.material.get_type() {
             MaterialType::MovableSolid => self.step_movable_solid(matrix),
-            _ => (),
+            MaterialType::Liquid => self.step_liquid(matrix),
+            _ => false,
         };
+
+        did_change
         //matrix.set_chunk_cluster_active(self.pos);
     }
 
-    pub fn move_to_if_material(&self, matrix: &mut Matrix, pos: IVec2, materials: Vec<Material>) -> bool {
+
+    pub fn swap_density(&mut self, matrix: &mut Matrix, pos: IVec2) -> bool {
         let mat_at_pos = matrix.get_cell(pos);
         if let Some(mat_at_pos) = mat_at_pos {
-            if materials.contains(&mat_at_pos.material) {
-                matrix.set_cell(pos, *self);
+            let mat_density = mat_at_pos.material.get_density();
+            if self.material.get_density() > mat_density {
+                matrix.set_cell(pos, self, true);
                 return true;
             };
         };
         false
     }
 
-    pub fn step_movable_solid(&mut self, matrix: &mut Matrix) {
-        let bottom = self.pos + IVec2::new(0, 1);
-        if self.move_to_if_material(matrix, bottom, vec![Material::Empty, Material::Water]) {return;};
+    pub fn step_movable_solid(&mut self, matrix: &mut Matrix) -> bool {
+        let bottom = self.pos + IVec2::new(self.velocity.x.round() as i32, self.velocity.y.round() as i32);
+        if self.try_move(matrix, bottom, false) {
+            return true;
+        };
+        let mut fac = 1.0;
+        if self.velocity.x > 0.0 {
+            fac = -1.0;
+        } else if self.velocity.x == 0.0 {
+            if rand::random() {
+                fac = -1.0;
+            };
+        };
+        self.velocity.x = (self.velocity.y / 5.0) * fac;
+        self.velocity.y = 0.0;
         
-        let bottom_left = self.pos + IVec2::new(-1, 1);
-        let bottom_right = self.pos + IVec2::new(1, 1);
+        let bottom_left = self.pos + IVec2::new(-1 * self.material.get_dispersion() as i32, 1);
+        let bottom_right = self.pos + IVec2::new(1 * self.material.get_dispersion() as i32, 1);
         let mut first = bottom_left;
         let mut second = bottom_right;
         if rand::random() {
             first = bottom_right;
             second = bottom_left
         };
-        if self.move_to_if_material(matrix, first, vec![Material::Empty, Material::Water]) {return;};
-        self.move_to_if_material(matrix, second, vec![Material::Empty, Material::Water]);
+        if self.try_move(matrix, first, false) {
+            return true;
+        };
+        if self.try_move(matrix, second, false) {
+            return true;
+        };
+        return false;
+    }
+
+    pub fn step_liquid(&mut self, matrix: &mut Matrix) -> bool {
+        if self.step_movable_solid(matrix) {return true;};
+        
+        let dir_multi = match rand::random::<bool>() {
+            true => 1,
+            false => -1,
+        };
+        if self.try_move(matrix, IVec2::new(self.material.get_dispersion() as i32 * dir_multi, 0), false) {return true;};
+        return false;
+    }
+
+
+    fn try_move(&mut self, matrix: &mut Matrix, to_pos: IVec2, debug: bool) -> bool {
+        let mut swapped = false;
+        let mut last_possible_cell: Option<_> = None;
+        
+        let x0 = self.pos.x.max(0).min(matrix.width as i32);
+        let y0 = self.pos.y.max(0).min(matrix.height as i32);
+        for (x, y) in line_drawing::Bresenham::new((x0, y0), (to_pos.x, to_pos.y)) {
+            let cur_pos = IVec2::new(x as i32, y as i32);
+            if cur_pos == self.pos {
+                continue;
+            };
+            let target_cell = matrix.get_cell(cur_pos);
+            if let Some(c) = target_cell {
+                if debug {
+                    println!("Target: {},   Cell: {:?}", cur_pos, c.material);
+                };
+                if c.material.get_density() < self.material.get_density() {
+                    last_possible_cell = Some(c.clone());
+                };
+                if last_possible_cell.is_none() {
+                    break;
+                };
+            } else {
+                break;
+            };
+        };
+
+        match last_possible_cell {
+            None => (),
+            Some(cell_2) => {
+                if cell_2 != *self {
+                    let cell_2_pos = cell_2.pos;
+                    matrix.set_cell(cell_2_pos, self, true);
+                    swapped = true;
+                }
+            },
+        }
+
+        return swapped;
     }
 }
 
