@@ -96,7 +96,15 @@ impl Matrix {
             None
         }
     }
-    pub fn get_chunk_for_pos(&mut self, pos: IVec2) -> Option<&mut Chunk> {
+    pub fn get_chunk_for_pos(&self, pos: IVec2) -> Option<&Chunk> {
+        let chunk_pos = pos / IVec2::new(CHUNK_SIZE_I32, CHUNK_SIZE_I32);
+        if self.chunk_in_bounds(chunk_pos) {
+            Some(&self.chunks[chunk_pos.y as usize][chunk_pos.x as usize])
+        } else {
+            None
+        }
+    }
+    pub fn get_chunk_for_pos_mut(&mut self, pos: IVec2) -> Option<&mut Chunk> {
         let chunk_pos = pos / IVec2::new(CHUNK_SIZE_I32, CHUNK_SIZE_I32);
         if self.chunk_in_bounds(chunk_pos) {
             Some(&mut self.chunks[chunk_pos.y as usize][chunk_pos.x as usize])
@@ -105,7 +113,7 @@ impl Matrix {
         }
     }
     pub fn set_chunk_active(&mut self, pos: IVec2) {
-        let chunk_res = self.get_chunk_for_pos(pos);
+        let chunk_res = self.get_chunk_for_pos_mut(pos);
         if let Some(chunk) = chunk_res {
             chunk.should_step_next_frame = true;
         }
@@ -185,16 +193,18 @@ impl Matrix {
 
 
     pub fn update(&mut self) {
+        // Tells all chunks that a new frame has begun
         for chunkrow in self.chunks.iter_mut() {
             for chunk in chunkrow.iter_mut() {
                 chunk.start_step();
             }
         };
 
-
+        // Helpers to only convert to i32 once
         let w = self.width as i32;
         let h = self.height as i32;
 
+        // Tell every cells that a new frame has begun
         for y in (0..h).rev() {
             for x in 0..w {
                 let idx = x + y * w;
@@ -206,56 +216,36 @@ impl Matrix {
             };
         };
 
-        let mut current_chunk = *self.get_chunk_for_pos(IVec2::new(0, h - 1)).unwrap();
+        // Iterate all cells from the bottom up and either from left to right or the other way around
         for y in (0..h).rev() {
             if self.update_left {
                 for x in (0..w).rev() {
-                    self.step_all(x, y, current_chunk, w);
+                    self.step_all(x, y, w);
                 }
             } else {
                 for x in (0..w) {
-                    self.step_all(x, y, current_chunk, w);
+                    self.step_all(x, y, w);
                 }
             };
             self.update_left = !self.update_left;
         };
-        //self.cells = self.scratch_cells.clone();
-        //std::mem::replace(&mut self.cells, self.scratch_cells);
     }
 
 
-    fn step_all(&mut self, x: i32, y: i32, mut current_chunk: Chunk, w: i32) {
+    /// Helper function to always execute the same logic regardless of wether iterating from the left or right side of the window
+    fn step_all(&mut self, x: i32, y: i32, w: i32) {
         let cur_pos = IVec2::new(x, y);
-        //println!("{}", cur_pos);
+        
         let cur_chunk = self.get_chunk_for_pos(cur_pos);
-        if let Some(cur_chunk) = cur_chunk {
-            if *cur_chunk != current_chunk {
-                current_chunk = *cur_chunk;
-            }
-        }
-
+        if cur_chunk.is_none() {
+            return;
+        };
+        let current_chunk = cur_chunk.unwrap();
+        
+        // If the chunk should process, update the cell
         if current_chunk.should_step {
-            let idx = x + y * w;
-            let mut cell = self.cells[idx as usize];
-            if cell.material == Material::Empty {
-                return;
-            };
-            if !cell.processed_this_frame {
-                cell.update(self);
-                cell.processed_this_frame = true;
-            };
-        };let cur_pos = IVec2::new(x, y);
-        //println!("{}", cur_pos);
-        let cur_chunk = self.get_chunk_for_pos(cur_pos);
-        if let Some(cur_chunk) = cur_chunk {
-            if *cur_chunk != current_chunk {
-                current_chunk = *cur_chunk;
-            }
-        }
-
-        if current_chunk.should_step {
-            let idx = x + y * w;
-            let mut cell = self.cells[idx as usize];
+            let idx = (x + y * w) as usize;
+            let mut cell = self.cells[idx];
             if cell.material == Material::Empty {
                 return;
             };

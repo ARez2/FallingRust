@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, sync::Arc, ops::{DerefMut, Deref}};
 
 use pixels::wgpu::Color;
 use crate::matrix::Matrix;
@@ -6,7 +6,7 @@ use glam::{IVec2, Vec2};
 use strum_macros::EnumIter;
 
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum MaterialType {
     Empty,
     Solid,
@@ -65,6 +65,13 @@ impl Material {
             Material::Water => 5,
         }
     }
+
+    pub fn get_intertial_resistance(&self) -> f32 {
+        match self {
+            Material::Sand => 1.1,
+            _ => 0.0,
+        }
+    }
 }
 
 
@@ -72,48 +79,72 @@ impl Material {
 #[derive(Clone, Copy, PartialEq)]
 pub struct Cell {
     pub pos: IVec2,
+    prev_pos: IVec2,
     pub velocity: Vec2,
     pub hp: u64,
     pub color: Color,
     pub material: Material,
     pub processed_this_frame: bool,
+    pub is_free_falling: bool,
 }
-
 
 
 impl Cell {
     pub fn new(pos: IVec2) -> Self {
         Self {
             pos,
+            prev_pos: pos,
             velocity: Vec2::ZERO,
             material: Material::Empty,
             color: Material::Empty.get_color(),
             hp: Material::Empty.get_hp(),
             processed_this_frame: false,
+            is_free_falling: true,
         }
     }
 
     pub fn new_material(pos: IVec2, material: Material) -> Self {
         Self {
             pos,
+            prev_pos: pos,
             velocity: Vec2::ZERO,
             material,
             hp: material.get_hp(),
             color: material.get_color(),
             processed_this_frame: false,
+            is_free_falling: true,
         }
     }
 
     pub fn update(&mut self, matrix: &mut Matrix) -> bool {
+        self.is_free_falling = self.pos.y != self.prev_pos.y;
+        if self.is_free_falling {
+            self.color = Color::BLUE;
+        } else {
+            self.color = Color::GREEN;
+        };
+        
         self.velocity += Vec2::new(0.0, 0.5);
-        let mut did_change = match self.material.get_type() {
+        let did_change = match self.material.get_type() {
             MaterialType::MovableSolid => self.step_movable_solid(matrix),
             MaterialType::Liquid => self.step_liquid(matrix),
             _ => false,
         };
+        self.prev_pos = self.pos;
 
         did_change
         //matrix.set_chunk_cluster_active(self.pos);
+    }
+
+
+    /// Tries to set a neighbouring cells "is_free_falling" to true based on inertia and that cells intertial resistance
+    pub fn attempt_free_fall(&mut self) {
+        if self.material.get_type() == MaterialType::MovableSolid {
+            let chance = self.material.get_intertial_resistance();
+            if rand::random::<f32>() > chance {
+                self.is_free_falling = true;
+            };
+        };
     }
 
 
@@ -130,9 +161,30 @@ impl Cell {
     }
 
     pub fn step_movable_solid(&mut self, matrix: &mut Matrix) -> bool {
+        if self.is_free_falling {
+            for y in -1..=1 {
+                for x in -1..=1 {
+                    let p = IVec2::new(x, y);
+                    if p.abs() == IVec2::ONE && p == IVec2::ZERO {
+                        continue;
+                    };
+                    let neighbour = matrix.get_cell_mut(self.pos + p);
+                    if let Some(n_cell) = neighbour {
+                        n_cell.attempt_free_fall();
+                    }
+                }
+            }
+        };
+
+
+
         let bottom = self.pos + IVec2::new(0, self.velocity.y.round() as i32);
         if self.try_move(matrix, bottom, false) {
+            self.is_free_falling = true;
             return true;
+        };
+        if !self.is_free_falling {
+            return false;
         };
         let mut fac = 1.0;
         if self.velocity.x > 0.0 {
