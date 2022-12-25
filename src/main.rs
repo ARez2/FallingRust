@@ -14,7 +14,7 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
-use falling_rust::{Matrix, Cell, cell::Material};
+use falling_rust::{Matrix, Material};
 
 const WIDTH: u32 = 16*15;
 const HEIGHT: u32 = 16*15;
@@ -44,6 +44,7 @@ fn main() -> Result<(), Error> {
     };
 
     let mut life = Matrix::new_empty(WIDTH as usize, HEIGHT as usize);
+    life.set_cell_material(IVec2::new(WIDTH as i32 / 2, 0), Material::Sand, false);
     let mut paused = false;
 
 
