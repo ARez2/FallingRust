@@ -2,7 +2,9 @@
 pub mod cell;
 pub use cell::Cell;
 
-//pub mod cellhandler;
+pub mod cellhandler;
+pub use cellhandler::cell_handler;
+
 pub mod material;
 pub use material::{Material, MaterialType};
 
