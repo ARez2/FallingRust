@@ -31,7 +31,7 @@ pub struct Matrix {
     pub height: usize,
     
     cells: Vec<Cell>,
-    data: Vec<Option<usize>>,
+    data: Vec<usize>,
     pub chunks: Vec<Vec<Chunk>>,
 
     pub debug_draw: bool,
@@ -46,14 +46,8 @@ impl Matrix {
         let size = width.checked_mul(height).expect("too big");
 
         let mut cells = Vec::<Cell>::new();
-        let mut data = vec![None; width * height];
-        // for y1 in 0..height {
-        //     for x1 in 0..width {
-        //         let new_cell: Cell = Cell::new(IVec2::new(x1 as i32, y1 as i32));
-        //         cells.push(new_cell);
-        //         data[x1 + y1 * width] = Some(cells.len() - 1);
-        //     };
-        // };
+        cells.push(Cell::new(IVec2::new(-1, -1)));
+        let data = vec![0; width * height];
         
         let mut chunks = vec![];
         for y in (0..height as i32).step_by(CHUNK_SIZE) {
@@ -89,7 +83,6 @@ impl Matrix {
     fn chunk_in_bounds(&self, chunk_pos: IVec2) -> bool {
         (chunk_pos.x >= 0 && chunk_pos.x < self.chunks.len() as i32) && (chunk_pos.y >= 0 && chunk_pos.y < self.chunks[0].len() as i32)
     }
-
     pub fn get_chunk_for_pos_not_mut(&self, pos: IVec2) -> Option<&Chunk> {
         let chunk_pos = pos / IVec2::new(CHUNK_SIZE_I32, CHUNK_SIZE_I32);
         if self.chunk_in_bounds(chunk_pos) {
@@ -133,16 +126,17 @@ impl Matrix {
     fn is_in_bounds(&self, pos: IVec2) -> bool {
         (pos.x >= 0 && pos.x < self.width as i32) && (pos.y >= 0 && pos.y < self.height as i32)
     }
-
-
-    fn cell_idx(&self, pos: IVec2) -> usize {
+    fn clamp_pos(&self, pos: IVec2) -> IVec2 {
+        IVec2::new(pos.x.max(0).min(self.width as i32 - 1), pos.y.max(0).min(self.height as i32 - 1))
+    }
+    fn cell_idx(&self, mut pos: IVec2) -> usize {
+        pos = self.clamp_pos(pos);
         (pos.x + pos.y * self.width as i32) as usize
     }
     /// Converts the position into an index in self.data
-    pub fn get_cell_idx_data(&self, pos: IVec2) -> Option<usize> {
+    pub fn get_cell_idx_data(&self, pos: IVec2) -> usize {
         let idx = self.cell_idx(pos);
-        let cell_idx = self.data[idx];
-        cell_idx
+        self.data[idx]
     }
 
     pub fn get_cell(&self, pos: IVec2) -> Option<&Cell> {
@@ -150,10 +144,10 @@ impl Matrix {
             None
         } else {
             let cell_idx = self.get_cell_idx_data(pos);
-            if cell_idx.is_none() {
+            if cell_idx == 0 {
                 return None;
             };
-            Some(&self.cells[cell_idx.unwrap()])
+            Some(&self.cells[cell_idx])
         }
     }
     pub fn get_cell_mut(&mut self, pos: IVec2) -> Option<&mut Cell> {
@@ -161,20 +155,14 @@ impl Matrix {
             None
         } else {
             let cell_idx = self.get_cell_idx_data(pos);
-            if cell_idx.is_none() {
+            if cell_idx == 0 {
                 return None;
             };
-            Some(&mut self.cells[cell_idx.unwrap()])
+            Some(&mut self.cells[cell_idx])
         }
     }
-    pub fn get_cell_by_cellindex(&self, cell_index: usize) -> Option<&Cell> {
-        if !self.data.contains(&Some(cell_index)) {
-            return None;
-        };
-        Some(&self.cells[cell_index])
-    }
     pub fn get_cell_by_cellindex_mut(&mut self, cell_index: usize) -> Option<&mut Cell> {
-        if !self.data.contains(&Some(cell_index)) {
+        if cell_index > self.cells.len() {
             return None;
         };
         Some(&mut self.cells[cell_index])
@@ -184,11 +172,11 @@ impl Matrix {
     /// Appends the cell to self.cells and updates self.data with its index
     pub fn add_cell_to_cells(&mut self, cell: &mut Cell) {
         let idx_in_data = self.cell_idx(cell.pos);
-        if self.data[idx_in_data].is_some() {
-            std::mem::replace(&mut self.cells[self.data[idx_in_data].unwrap()], *cell);
+        if self.data[idx_in_data] != 0 {
+            let old = std::mem::replace(&mut self.cells[self.data[idx_in_data]], *cell);
         } else {
             self.cells.push(*cell);
-            self.data[idx_in_data] = Some(self.cells.len() - 1);
+            self.data[idx_in_data] = self.cells.len() - 1;
         };
         //println!("self.cells len: {}, idx in data: {}", self.cells.len(), idx_in_data);
     }
@@ -207,28 +195,28 @@ impl Matrix {
         let cell_index_in_data = self.data[cell_pos_index];
         // Index of "cell which is currently at the target position" inside self.cells
         let cell_at_target = self.data[target_pos_index];
-        if cell_index_in_data.is_none() {
+        if cell_index_in_data == 0 {
             return;
         };
 
-        let cell_index_in_data_idx = cell_index_in_data.unwrap();
+        let cell_index_in_data_idx = cell_index_in_data;
 
         // Target cell is empty
-        if cell_at_target.is_none() || !swap {
+        if cell_at_target == 0 || !swap {
             if pos != cellpos {
-                self.data[cell_pos_index] = None;
+                self.data[cell_pos_index] = 0;
             };
-            self.data[target_pos_index] = Some(cell_index_in_data_idx);
+            self.data[target_pos_index] = cell_index_in_data_idx;
         } else {
-            let cell_at_target_idx = cell_at_target.unwrap();
+            let cell_at_target_idx = cell_at_target;
 
             if cell_index_in_data_idx == cell_at_target_idx {
                 return;
             };
 
-            self.data[target_pos_index] = Some(cell_at_target_idx);
+            self.data[target_pos_index] = cell_at_target_idx;
             // Set the value of self.data at the old cells position to the value of the cell that was swapped
-            self.data[cell_pos_index] = Some(cell_index_in_data_idx);
+            self.data[cell_pos_index] = cell_index_in_data_idx;
             // Set the swapped cells position to the cells old position
             self.cells[cell_at_target_idx].pos = cellpos;
         }
@@ -246,11 +234,14 @@ impl Matrix {
             warn!("Pos out of range");
             return;
         };
-        if self.get_cell_idx_data(cell.pos).is_none() {
+        if self.get_cell_idx_data(cell.pos) == 0 {
             if !self.cells.contains(cell) {
                 self.add_cell_to_cells(cell);
             };
-        }
+        };
+        if cell.pos == pos {
+            return;
+        };
         self.set_cell_by_pos(pos, cell.pos, swap);
     }
 
@@ -289,21 +280,8 @@ impl Matrix {
         let h = self.height as i32;
 
         // Tell every cells that a new frame has begun
-        for y in (0..h).rev() {
-            for x in 0..w {
-                let idx = x + y * w;
-                let cell_idx = self.data[idx as usize];
-                if cell_idx.is_none() {
-                    continue;
-                };
-                let cell_idx = cell_idx.unwrap();
-                let cell = &mut self.cells[cell_idx];
-                
-                if cell.material == Material::Empty {
-                    continue;
-                };
-                cell.processed_this_frame = false;
-            };
+        for cell in self.cells.iter_mut() {
+            cell.processed_this_frame = false;
         };
 
         // Iterate all cells from the bottom up and either from left to right or the other way around
@@ -336,25 +314,25 @@ impl Matrix {
         if current_chunk.should_step {
             let idx = (x + y * w) as usize;
             let cell_idx = self.data[idx];
-            if cell_idx.is_none() {
+            if cell_idx == 0 {
                 return;
             };
-            let cell_idx = cell_idx.unwrap();
+            let cell_idx = cell_idx;
             let cell = self.get_cell_by_cellindex_mut(cell_idx).unwrap();
-            let processed = cell.processed_this_frame;
-            std::mem::drop(cell);
+            //let processed = cell.processed_this_frame;
+            //std::mem::drop(cell);
             // if cell.material == Material::Empty {
             //     return;
             // };
-            if !processed {
+            if !cell.processed_this_frame {
                 let cell = self.get_cell_by_cellindex_mut(cell_idx).unwrap();
-                let cellvel = cell.velocity;
+                //let cellvel = cell.velocity;
                 cell.update();
                 cell.processed_this_frame = true;
-                let cellpos = cell.pos;
-                if cell.velocity != cellvel {
-                    self.set_chunk_cluster_active(cellpos);
-                };
+                // let cellpos = cell.pos;
+                // if cell.velocity != cellvel {
+                //     self.set_chunk_cluster_active(cellpos);
+                // };
                 
                 self.handle_cell(cell_idx);
             };
@@ -477,7 +455,6 @@ impl Matrix {
         return false;
     }
     fn try_move(&mut self, cell_index: usize, to_pos: IVec2, diagonal: bool) -> bool {
-        let mut swapped = false;
         let mut last_possible_cell: Option<_> = None;
         
         let width = self.width as i32;
@@ -525,12 +502,12 @@ impl Matrix {
                 if last_pos != IVec2::new(x0, y0) {
                     //println!("{}  ------>  {}", cellpos, last_pos);
                     self.set_cell_by_pos(last_pos, cellpos, true);
-                    swapped = true;
+                    return true;
                 }
             },
         }
 
-        return swapped;
+        return false;
     }
 
 
@@ -542,7 +519,8 @@ impl Matrix {
     pub fn draw(&self, screen: &mut [u8]) {
         debug_assert_eq!(screen.len(), 4 * self.cells.len());
         screen.fill(0);
-        for c in self.cells.iter() {
+        for c in self.cells.iter().skip(1) {
+            
             let mut draw_color = c.color;
             
             let chunk = self.get_chunk_for_pos_not_mut(c.pos);
@@ -551,7 +529,7 @@ impl Matrix {
                     draw_color = Color::RED;
                 }
             };
-            let idx = (c.pos.x + c.pos.y * self.width as i32) as usize * 4;
+            let idx = self.cell_idx(c.pos) * 4;
             let color = [(draw_color.r * 255.0) as u8, (draw_color.g * 255.0) as u8, (draw_color.b * 255.0) as u8, (draw_color.a * 255.0) as u8];
             screen[idx + 0] = color[0];
             screen[idx + 1] = color[1];

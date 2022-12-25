@@ -21,6 +21,8 @@ const HEIGHT: u32 = 16*15;
 const SCALE: f64 = 5.0;
 
 fn main() -> Result<(), Error> {
+    //env::set_var("DTRACE", "C:\\Program Files\\DTrace\\dtrace.exe");
+    println!("{}", env::var("DTRACE").unwrap());
     //env::set_var("RUST_LOG", "falling_rust=debug");
     env_logger::init();
     let event_loop = EventLoop::new();
