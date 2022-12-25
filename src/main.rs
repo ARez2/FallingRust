@@ -21,8 +21,6 @@ const HEIGHT: u32 = 16*15;
 const SCALE: f64 = 5.0;
 
 fn main() -> Result<(), Error> {
-    //env::set_var("DTRACE", "C:\\Program Files\\DTrace\\dtrace.exe");
-    println!("{}", env::var("DTRACE").unwrap());
     //env::set_var("RUST_LOG", "falling_rust=debug");
     env_logger::init();
     let event_loop = EventLoop::new();
@@ -46,7 +44,9 @@ fn main() -> Result<(), Error> {
     };
 
     let mut life = Matrix::new_empty(WIDTH as usize, HEIGHT as usize);
-    life.set_cell_material(IVec2::new(WIDTH as i32 / 2, 0), Material::Sand, false);
+    life.brush_size = 10;
+    life.draw_brush(IVec2::new(WIDTH as i32 / 2, 0), Material::Sand);
+    life.brush_size = 1;
     let mut paused = false;
 
 
@@ -156,7 +156,7 @@ fn main() -> Result<(), Error> {
                         if y > 0.0 {
                             life.brush_material_index += 1;
                             if life.brush_material_index >= Material::iter().count() {
-                                life.brush_material_index = 0;
+                                life.brush_material_index = 1;
                             };
                         } else if y < 0.0 {
                             if life.brush_material_index == 0 {

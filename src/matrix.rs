@@ -246,7 +246,7 @@ impl Matrix {
     }
 
     pub fn draw_brush(&mut self, pos: IVec2, material: Material) {
-        let mut bs = self.brush_size as i32;
+        let bs = self.brush_size as i32;
         if bs == 1 {
             self.set_cell_material(pos, material, false);
             return;
@@ -317,7 +317,6 @@ impl Matrix {
             if cell_idx == 0 {
                 return;
             };
-            let cell_idx = cell_idx;
             let cell = self.get_cell_by_cellindex_mut(cell_idx).unwrap();
             //let processed = cell.processed_this_frame;
             //std::mem::drop(cell);
@@ -352,7 +351,7 @@ impl Matrix {
 
         let did_move = match cell.material.get_type() {
             MaterialType::MovableSolid => self.movable_solid_step(cell_index),
-            //MaterialType::Liquid => self.liquid_step(cell),
+            MaterialType::Liquid => self.liquid_step(cell_index),
             _ => false,
         };
     }
@@ -500,7 +499,6 @@ impl Matrix {
             None => (),
             Some(last_pos) => {
                 if last_pos != IVec2::new(x0, y0) {
-                    //println!("{}  ------>  {}", cellpos, last_pos);
                     self.set_cell_by_pos(last_pos, cellpos, true);
                     return true;
                 }

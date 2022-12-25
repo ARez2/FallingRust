@@ -47,12 +47,7 @@ impl Cell {
     }
 
     pub fn update(&mut self) {
-        //self.is_free_falling = self.pos.y != self.prev_pos.y;
-        // if self.is_free_falling {
-        //     self.color = Color::BLUE;
-        // } else {
-        //     self.color = Color::GREEN;
-        // };
+        self.is_free_falling = self.pos.y != self.prev_pos.y;
         self.velocity += Vec2::new(0.0, 0.5);
         // let vel_round = self.velocity.round();
         // let desired_pos = self.pos + IVec2::new(vel_round.x as i32, vel_round.y as i32);
@@ -65,8 +60,10 @@ impl Cell {
     pub fn attempt_free_fall(&mut self) {
         if self.material.get_type() == MaterialType::MovableSolid {
             let chance = self.material.get_intertial_resistance();
-            if rand::random::<f32>() > chance {
+            let rng = rand::random::<f32>();
+            if rng > chance {
                 self.is_free_falling = true;
+                //self.color = Color::GREEN;
             };
         };
     }
