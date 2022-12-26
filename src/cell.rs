@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use pixels::wgpu::Color;
 use crate::matrix::Matrix;
 use glam::{IVec2, Vec2};
@@ -69,3 +71,8 @@ impl Cell {
     }
 }
 
+impl Display for Cell {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?} at {}, {}", self.material, self.pos, self.velocity)
+    }
+}

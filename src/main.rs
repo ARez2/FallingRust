@@ -7,7 +7,7 @@ use strum::IntoEnumIterator;
 use std::env;
 use pixels::{Error, Pixels, SurfaceTexture};
 use winit::{
-    dpi::LogicalSize,
+    dpi::{LogicalSize, LogicalPosition},
     event::{Event, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
@@ -33,6 +33,7 @@ fn main() -> Result<(), Error> {
             .with_title("Falling Sand Simulation")
             .with_inner_size(scaled_size)
             .with_min_inner_size(size)
+            .with_position(LogicalPosition::new(2560 - (WIDTH as f64 * SCALE).round() as u32 - 50, 30))
             .build(&event_loop)
             .unwrap()
     };
@@ -44,15 +45,15 @@ fn main() -> Result<(), Error> {
     };
 
     let mut life = Matrix::new_empty(WIDTH as usize, HEIGHT as usize);
-    life.brush_size = 10;
-    life.draw_brush(IVec2::new(WIDTH as i32 / 2, 0), Material::Sand);
-    life.brush_size = 1;
+    life.set_cell_material(IVec2::new(140, 220), Material::Sand, false);
+    life.set_cell_material(IVec2::new(140, 200), Material::Dirt, false);
     let mut paused = false;
 
 
     event_loop.run(move |event, _, control_flow| {
         // The one and only event that winit_input_helper doesn't have for us...
         if let Event::RedrawRequested(_) = event {
+            // std::thread::sleep(core::time::Duration::from_millis(500));
             life.draw(pixels.get_frame_mut());
             if pixels
                 .render()

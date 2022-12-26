@@ -3,7 +3,7 @@
 
 
 pub mod cell_handler {
-    use glam::IVec2;
+    use glam::{IVec2, Vec2};
 
     use crate::{Cell, Matrix, MaterialType, Material, rand_multiplier};
 
@@ -13,6 +13,7 @@ pub mod cell_handler {
             return;
         };
         let cell = cell.unwrap();
+        // println!("Handle: {}", cell);
         // let material = cell.material;
         // std::mem::drop(cell);
 
@@ -57,12 +58,15 @@ pub mod cell_handler {
         if try_move(matrix, cell_index, bottom, false) {
             let cell = matrix.get_cell_by_cellindex_mut(cell_index).unwrap();
             cell.is_free_falling = true;
+            //println!("Move down: {}", matrix.get_cell_by_cellindex_mut(cell_index).unwrap());
             return true;
         };
 
         //return false;
         let cell = matrix.get_cell_by_cellindex_mut(cell_index).unwrap();
         if !cell.is_free_falling {
+            cell.velocity = Vec2::ZERO;
+            //println!("Not freefalling, returning... {}", matrix.get_cell_by_cellindex_mut(cell_index).unwrap());
             return false;
         };
         let mut fac = 1.0;
@@ -73,18 +77,8 @@ pub mod cell_handler {
                 fac = -1.0;
             };
         };
-        cell.velocity.x = (cell.velocity.y / 2.0) * fac;
-        cell.velocity.y *= -0.1;
-
-        // {
-        //     let cell = matrix.get_cell_by_cellindex_mut(cell_index);
-        //     if cell.is_none() {
-        //         return false;
-        //     };
-        //     let cell = cell.unwrap();
-        //     cell.velocity = cellvel;
-        //     cell.is_free_falling = freefall;
-        // }
+        //cell.velocity.x = (cell.velocity.y / 2.0) * fac;
+        //cell.velocity.y *= -0.1;
         
         let x_vel_check = cell.velocity.x.round().abs().max(1.0) as i32;
         let disp = cell.material.get_dispersion() as i32;
@@ -97,9 +91,11 @@ pub mod cell_handler {
             second = bottom_left
         };
         if try_move(matrix, cell_index, first, true) {
+            //println!("Move diagonal to {}: {}", first, matrix.get_cell_by_cellindex_mut(cell_index).unwrap());
             return true;
         };
         if try_move(matrix, cell_index, second, true) {
+            //println!("Move diagonal 2 to {}: {}", second, matrix.get_cell_by_cellindex_mut(cell_index).unwrap());
             return true;
         };
         return false;
@@ -143,6 +139,7 @@ pub mod cell_handler {
         
         let x0 = cellpos.x.max(0).min(width);
         let y0 = cellpos.y.max(0).min(height);
+        let mut num_steps = 0;
         for (x, y) in line_drawing::WalkGrid::new((x0, y0), (to_pos.x, to_pos.y)) {
             let cur_pos = IVec2::new(x as i32, y as i32);
             if cur_pos == cellpos {
@@ -150,6 +147,9 @@ pub mod cell_handler {
             };
             let target_cell = matrix.get_cell(cur_pos);
             if let Some(tcell) = target_cell {
+                if num_steps > 1 {
+                    break;
+                };
                 if tcell.material.get_density() < cellmat.get_density() {
                     last_possible_cell = Some(cur_pos);
                 };
@@ -162,11 +162,16 @@ pub mod cell_handler {
                     last_possible_cell = Some(cur_pos);
                 };
             };
+
+            num_steps += 1;
         };
 
         match last_possible_cell {
             None => (),
             Some(last_pos) => {
+                // if diagonal {
+                //     println!("Try move: {}     last pos: {}", matrix.get_cell_by_cellindex_mut(cell_index).unwrap(), last_pos);
+                // };
                 if last_pos != IVec2::new(x0, y0) {
                     matrix.set_cell_by_pos(last_pos, cellpos, true);
                     return true;
