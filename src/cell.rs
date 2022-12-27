@@ -48,7 +48,8 @@ impl Cell {
 
     /// Updates the cells properties after the cells has been handled by the cellhandler
     pub fn post_update(&mut self) {
-        self.is_free_falling = self.pos != self.prev_pos;
+        self.is_free_falling = self.pos.y != self.prev_pos.y;
+        
         self.prev_pos = self.pos;
     }
 
