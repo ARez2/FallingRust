@@ -45,15 +45,12 @@ fn main() -> Result<(), Error> {
     };
 
     let mut life = Matrix::new_empty(WIDTH as usize, HEIGHT as usize);
-    life.set_cell_material(IVec2::new(140, 220), Material::Sand, false);
-    life.set_cell_material(IVec2::new(140, 200), Material::Dirt, false);
     let mut paused = false;
-
 
     event_loop.run(move |event, _, control_flow| {
         // The one and only event that winit_input_helper doesn't have for us...
         if let Event::RedrawRequested(_) = event {
-            // std::thread::sleep(core::time::Duration::from_millis(500));
+            //std::thread::sleep(core::time::Duration::from_millis(500));
             life.draw(pixels.get_frame_mut());
             if pixels
                 .render()
@@ -157,13 +154,16 @@ fn main() -> Result<(), Error> {
                         if y > 0.0 {
                             life.brush_material_index += 1;
                             if life.brush_material_index >= Material::iter().count() {
-                                life.brush_material_index = 1;
+                                life.brush_material_index = 0;
                             };
                         } else if y < 0.0 {
                             if life.brush_material_index == 0 {
                                 life.brush_material_index = Material::iter().count() - 1;
+                            } else {
+                                life.brush_material_index -= 1;
                             };
-                        }
+                        };
+                        println!("Material: {:?}", life.get_material_from_brushindex());
                     },
                     _ => (),
                 },

@@ -15,7 +15,7 @@ pub mod chunk;
 pub use chunk::Chunk;
 
 
-
+/// Returns 1 or -1 at random
 pub fn rand_multiplier() -> i32 {
     match rand::random::<bool>() {
         true => 1,

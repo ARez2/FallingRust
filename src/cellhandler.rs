@@ -1,21 +1,19 @@
 
 
-
-
 pub mod cell_handler {
     use glam::{IVec2, Vec2};
 
-    use crate::{Cell, Matrix, MaterialType, Material, rand_multiplier};
+    use crate::{Matrix, MaterialType, rand_multiplier};
 
+    /// Function which gets called for all the cells.
+    /// 
+    /// Calls the respective methods depending on the cell material
     pub fn handle_cell(matrix: &mut Matrix, cell_index: usize) {
         let cell = matrix.get_cell_by_cellindex_mut(cell_index);
         if cell.is_none() {
             return;
         };
         let cell = cell.unwrap();
-        // println!("Handle: {}", cell);
-        // let material = cell.material;
-        // std::mem::drop(cell);
 
         let did_move = match cell.material.get_type() {
             MaterialType::MovableSolid => movable_solid_step(matrix, cell_index),
@@ -24,9 +22,10 @@ pub mod cell_handler {
         };
     }
 
-
+    /// Handles the cell logic for movable solids like sand (first down then diagonally down)
     fn movable_solid_step(matrix: &mut Matrix, cell_index: usize) -> bool {
         let mut bottom = IVec2::new(0, 1);
+        let mut is_movable_solid = true;
         {
             let cell = matrix.get_cell_by_cellindex_mut(cell_index);
             if cell.is_none() {
@@ -35,10 +34,11 @@ pub mod cell_handler {
             let (freefall, cellpos) = {
                 let cell = cell.unwrap();
                 bottom = cell.pos + IVec2::new(0, cell.velocity.y.round() as i32);
+                is_movable_solid = cell.material.get_type() == MaterialType::MovableSolid;
                 (cell.is_free_falling, cell.pos)
             };
             
-            if freefall {
+            if freefall && is_movable_solid {
                 for y in -1..=1 {
                     for x in -1..=1 {
                         let p = IVec2::new(x, y);
@@ -53,20 +53,16 @@ pub mod cell_handler {
                 }
             };
         }
-
         
         if try_move(matrix, cell_index, bottom, false) {
             let cell = matrix.get_cell_by_cellindex_mut(cell_index).unwrap();
             cell.is_free_falling = true;
-            //println!("Move down: {}", matrix.get_cell_by_cellindex_mut(cell_index).unwrap());
             return true;
         };
 
-        //return false;
         let cell = matrix.get_cell_by_cellindex_mut(cell_index).unwrap();
-        if !cell.is_free_falling {
+        if is_movable_solid && !cell.is_free_falling {
             cell.velocity = Vec2::ZERO;
-            //println!("Not freefalling, returning... {}", matrix.get_cell_by_cellindex_mut(cell_index).unwrap());
             return false;
         };
         let mut fac = 1.0;
@@ -77,29 +73,32 @@ pub mod cell_handler {
                 fac = -1.0;
             };
         };
-        //cell.velocity.x = (cell.velocity.y / 2.0) * fac;
-        //cell.velocity.y *= -0.1;
+        if is_movable_solid {
+            cell.velocity.x = (cell.velocity.y / 4.0) * fac;
+            cell.velocity.y *= -0.1;
+        };
         
         let x_vel_check = cell.velocity.x.round().abs().max(1.0) as i32;
         let disp = cell.material.get_dispersion() as i32;
-        let bottom_left = cell.pos + IVec2::new(-1 * disp * x_vel_check, 1);
-        let bottom_right = cell.pos + IVec2::new(1 * disp * x_vel_check, 1);
+        let cellpos = cell.pos;
+        let bottom_left = cellpos + IVec2::new(-1 * disp * x_vel_check, 1);
+        let bottom_right = cellpos + IVec2::new(1 * disp * x_vel_check, 1);
         let mut first = bottom_left;
         let mut second = bottom_right;
-        if rand::random() {
+        if true {//rand::random()
             first = bottom_right;
             second = bottom_left
         };
         if try_move(matrix, cell_index, first, true) {
-            //println!("Move diagonal to {}: {}", first, matrix.get_cell_by_cellindex_mut(cell_index).unwrap());
             return true;
         };
         if try_move(matrix, cell_index, second, true) {
-            //println!("Move diagonal 2 to {}: {}", second, matrix.get_cell_by_cellindex_mut(cell_index).unwrap());
             return true;
         };
         return false;
     }
+
+    /// Handles the cell logic for liquids (first movable solid step the horizontal)
     fn liquid_step(matrix: &mut Matrix, cell_index: usize) -> bool {
         if movable_solid_step(matrix, cell_index) {
             return true;
@@ -109,16 +108,20 @@ pub mod cell_handler {
         if cell.is_none() {
             return false;
         };
-        let cell = cell.unwrap();
+        let cell = cell.unwrap();        
+        let disp = cell.material.get_dispersion() as i32;
+        let cellpos = cell.pos;
         
-        
-        let horizontal_movement = IVec2::new(cell.material.get_dispersion() as i32 * rand_multiplier(), 0);
-        if try_move(matrix, cell_index, horizontal_movement, false) {return true;};
+        let horizontal_movement = cellpos + IVec2::new(disp * rand_multiplier(), 0);
+        if try_move(matrix, cell_index, horizontal_movement, false) {
+            return true;
+        };
         return false;
     }
 
-
-    fn try_move(matrix: &mut Matrix, cell_index: usize, to_pos: IVec2, diagonal: bool) -> bool {
+    /// Tries to move the cell to the specified position. Stops when it encounters an obstacle
+    fn try_move(matrix: &mut Matrix, cell_index: usize, mut to_pos: IVec2, diagonal: bool) -> bool {
+        to_pos = matrix.clamp_pos(to_pos);
         let mut last_possible_cell: Option<_> = None;
         
         let width = matrix.width as i32;
@@ -133,7 +136,6 @@ pub mod cell_handler {
             (cell.pos, cell.material)
         };
         if cellpos == to_pos {
-            //println!("try move: attempt at moving to same cell");
             return false;
         };
         
@@ -150,6 +152,7 @@ pub mod cell_handler {
                 if num_steps > 1 {
                     break;
                 };
+                //println!("Target cell: {}    own material density: {}", tcell, cellmat.get_density());
                 if tcell.material.get_density() < cellmat.get_density() {
                     last_possible_cell = Some(cur_pos);
                 };
@@ -169,9 +172,6 @@ pub mod cell_handler {
         match last_possible_cell {
             None => (),
             Some(last_pos) => {
-                // if diagonal {
-                //     println!("Try move: {}     last pos: {}", matrix.get_cell_by_cellindex_mut(cell_index).unwrap(), last_pos);
-                // };
                 if last_pos != IVec2::new(x0, y0) {
                     matrix.set_cell_by_pos(last_pos, cellpos, true);
                     return true;

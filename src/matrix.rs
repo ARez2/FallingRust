@@ -45,7 +45,6 @@ impl Matrix {
         let size = width.checked_mul(height).expect("too big");
 
         let mut cells = Vec::<Cell>::new();
-        //cells.push(Cell::new(IVec2::new(-1, -1)));
         let data = vec![0; width * height];
         
         let mut chunks = vec![];
@@ -78,18 +77,12 @@ impl Matrix {
         }
     }
 
-
+    /// Checks wether the chunk position is valid
     fn chunk_in_bounds(&self, chunk_pos: IVec2) -> bool {
         (chunk_pos.x >= 0 && chunk_pos.x < self.chunks.len() as i32) && (chunk_pos.y >= 0 && chunk_pos.y < self.chunks[0].len() as i32)
     }
-    pub fn get_chunk_for_pos_not_mut(&self, pos: IVec2) -> Option<&Chunk> {
-        let chunk_pos = pos / IVec2::new(CHUNK_SIZE_I32, CHUNK_SIZE_I32);
-        if self.chunk_in_bounds(chunk_pos) {
-            Some(&self.chunks[chunk_pos.y as usize][chunk_pos.x as usize])
-        } else {
-            None
-        }
-    }
+    
+    /// Returns a reference to the chunk at this cell position
     pub fn get_chunk_for_pos(&self, pos: IVec2) -> Option<&Chunk> {
         let chunk_pos = pos / IVec2::new(CHUNK_SIZE_I32, CHUNK_SIZE_I32);
         if self.chunk_in_bounds(chunk_pos) {
@@ -98,6 +91,8 @@ impl Matrix {
             None
         }
     }
+    
+    /// Returns a mutable reference to the chunk at this cell position
     pub fn get_chunk_for_pos_mut(&mut self, pos: IVec2) -> Option<&mut Chunk> {
         let chunk_pos = pos / IVec2::new(CHUNK_SIZE_I32, CHUNK_SIZE_I32);
         if self.chunk_in_bounds(chunk_pos) {
@@ -106,12 +101,16 @@ impl Matrix {
             None
         }
     }
+    
+    /// Tells the chunk to be updated the next frame
     pub fn set_chunk_active(&mut self, pos: IVec2) {
         let chunk_res = self.get_chunk_for_pos_mut(pos);
         if let Some(chunk) = chunk_res {
             chunk.should_step_next_frame = true;
         }
     }
+    
+    /// Tells the chunk and all chunks around it to be updated the next frame
     pub fn set_chunk_cluster_active(&mut self, pos: IVec2) {
         for y in (pos.y-CHUNK_SIZE_I32..=pos.y+CHUNK_SIZE_I32).step_by(CHUNK_SIZE) {
             for x in (pos.x-CHUNK_SIZE_I32..=pos.x+CHUNK_SIZE_I32).step_by(CHUNK_SIZE) {
@@ -120,29 +119,36 @@ impl Matrix {
         }
     }
 
-
-
     pub fn is_in_bounds(&self, pos: IVec2) -> bool {
         (pos.x >= 0 && pos.x < self.width as i32) && (pos.y >= 0 && pos.y < self.height as i32)
     }
-    fn clamp_pos(&self, pos: IVec2) -> IVec2 {
-        IVec2::new(pos.x.max(0).min(self.width as i32 - 1), pos.y.max(0).min(self.height as i32 - 1))
+
+    /// Clamps the position to be within the bounds of the pixel buffer
+    pub fn clamp_pos(&self, mut pos: IVec2) -> IVec2 {
+        IVec2::new(pos.x.min(self.width as i32 - 1).max(0), pos.y.min(self.height as i32 - 1).max(0))
     }
+
+    /// Converts the position into an index to be used in self.data
     fn cell_idx(&self, mut pos: IVec2) -> usize {
         pos = self.clamp_pos(pos);
         (pos.x + pos.y * self.width as i32) as usize
     }
-    /// Converts the position into an index in self.data
+
+    /// Gets the index of the cell in self.cells at that position
     pub fn get_data_at_pos(&self, pos: IVec2) -> usize {
         let idx = self.cell_idx(pos);
         self.data[idx]
     }
+
+    /// Returns a reference to the cell at cell_index (which is written in self.data)
     fn get_cell_from_cells(&self, cell_index: usize) -> Option<&Cell> {
         if cell_index < 1 || cell_index > self.cells.len() {
             return None;
         };
         Some(&self.cells[cell_index - 1])
     }
+
+    /// Returns a mutable reference to the cell at cell_index (which is written in self.data)
     fn get_cell_from_cells_mut(&mut self, cell_index: usize) -> Option<&mut Cell> {
         if cell_index < 1 || cell_index > self.cells.len() {
             return None;
@@ -150,6 +156,7 @@ impl Matrix {
         Some(&mut self.cells[cell_index - 1])
     }
 
+    /// Returns a reference to the cell at this position
     pub fn get_cell(&self, pos: IVec2) -> Option<&Cell> {
         if !self.is_in_bounds(pos) {
             None
@@ -161,6 +168,8 @@ impl Matrix {
             self.get_cell_from_cells(cell_idx)
         }
     }
+
+    /// Returns a mutable reference to the cell at this position
     pub fn get_cell_mut(&mut self, pos: IVec2) -> Option<&mut Cell> {
         if !self.is_in_bounds(pos) {
             None
@@ -172,6 +181,8 @@ impl Matrix {
             self.get_cell_from_cells_mut(cell_idx)
         }
     }
+
+    /// Returns a mutable reference to the cell based on cell_index
     pub fn get_cell_by_cellindex_mut(&mut self, cell_index: usize) -> Option<&mut Cell> {
         if cell_index > self.cells.len() {
             return None;
@@ -191,45 +202,59 @@ impl Matrix {
             let c_idx = self.cell_idx(cell.pos);
             self.data[c_idx] = self.cells.len();
         };
-        //println!("self.cells len: {}, idx in data: {}", self.cells.len(), idx_in_data);
     }
-    pub fn set_cell_material(&mut self, pos: IVec2, material: Material, swap: bool) {
-        let mut cell = Cell::new_material(pos, material);
+
+    /// Replaces the cell at cellpos with the last cell in self.cells (faster than shifting) and updates self.data
+    pub fn remove_cell_from_cells(&mut self, cellpos: IVec2) {
+        let cell_index = self.get_data_at_pos(cellpos);
+        let data_idx = self.cell_idx(cellpos);
+        self.data[data_idx] = 0;
+        self.set_chunk_cluster_active(cellpos);
+        let cell_to_remove_idx = cell_index - 1;
+        if cell_index == self.cells.len() {
+            self.cells.remove(cell_to_remove_idx);
+            return;
+        };
+        if self.get_cell_from_cells(cell_index).is_some() {
+            let last_cell_pos = self.cells.last().unwrap().pos;
+            let idx_of_last_cell_in_data = self.cell_idx(last_cell_pos);
+            self.data[idx_of_last_cell_in_data] = cell_index;
+            self.cells.swap_remove(cell_to_remove_idx);
+        };
+    }
+
+    /// Places a cell at specified pos with the material given
+    pub fn set_cell_material(&mut self, mut pos: IVec2, material: Material, swap: bool) {
+        if material == Material::Empty {
+            self.remove_cell_from_cells(pos);
+            return;
+        };
+        pos = self.clamp_pos(pos);
+        let mut cell = Cell::new(pos, material);
         self.add_cell_to_cells(&mut cell);
         self.set_cell_by_pos(pos, cell.pos, swap);
     }
 
-
+    /// Places a cell which is located at cellpos at the specified target position (pos)
     pub fn set_cell_by_pos(&mut self, pos: IVec2, cellpos: IVec2, swap: bool) {
         // Index of the cell inside self.data
         let cell_pos_index = self.cell_idx(cellpos);
         // Index of position where the cell wants to go inside self.data
         let target_pos_index = self.cell_idx(pos);
         
-        let mut data_at_cellpos = self.get_data_at_pos(cellpos);
-        let mut data_at_targetpos = self.get_data_at_pos(pos);
+        let data_at_cellpos = self.get_data_at_pos(cellpos);
+        let data_at_targetpos = self.get_data_at_pos(pos);
         if data_at_cellpos == 0 {
             return;
         };
-        
-        // if pos.y > 237 {
-        //     for cell in self.cells.iter() {
-        //         println!("Set cell by pos: {}", cell);
-        //     };
-        // };
+
+        self.get_cell_from_cells_mut(data_at_cellpos).unwrap().pos = pos;
+        self.data[target_pos_index] = data_at_cellpos;
 
         // Target cell is empty
         if data_at_targetpos == 0 || !swap {
-            // if pos.y == 239 {
-            //     println!("Calling cell: {} (cellpos: {}) wants to move to {}. Cell at that pos: {}", self.get_cell_from_cells(data_at_cellpos).unwrap(), cellpos, pos, self.data[target_pos_index]);
-            // };
             if pos != cellpos {
                 self.data[cell_pos_index] = 0;
-            };
-            self.data[target_pos_index] = data_at_cellpos;
-
-            if let Some(calling_cell) = self.get_cell_from_cells_mut(data_at_cellpos) {
-                calling_cell.pos = pos;
             };
         } else {
             let cellmat = self.get_cell_from_cells_mut(data_at_cellpos).unwrap().material;
@@ -239,24 +264,16 @@ impl Matrix {
             if cellmat == target_cellmat {
                 return;
             };
-            //let cell_at_target_idx = cell_at_target;
-            //println!();
-            //println!();
-            //println!("Swap {} with {}", self.get_cell_from_cells(data_at_cellpos).unwrap(), self.get_cell_from_cells(data_at_targetpos).unwrap());
             self.get_cell_from_cells_mut(data_at_targetpos).unwrap().pos = cellpos;
-            self.get_cell_from_cells_mut(data_at_cellpos).unwrap().pos = pos;
-
             self.data[cell_pos_index] = data_at_targetpos;
-            self.data[target_pos_index] = data_at_cellpos;
-            //println!("After swap {} ---- {}", self.get_cell_from_cells(data_at_cellpos).unwrap(), self.get_cell_from_cells(data_at_targetpos).unwrap());
-        }
-
+        };
         
         // Set both positions chunks active (new and previous cell position)
         self.set_chunk_cluster_active(cellpos);
         self.set_chunk_cluster_active(pos);
     }
 
+    /// Places a cell at position. Internally calls set_cell_by_pos but checks wether that cell already exists in self.cells
     pub fn set_cell(&mut self, pos: IVec2, cell: &mut Cell, swap: bool) {
         if !self.is_in_bounds(pos) {
             warn!("Pos out of range");
@@ -273,6 +290,7 @@ impl Matrix {
         self.set_cell_by_pos(pos, cell.pos, swap);
     }
 
+    /// Places cells in the specified brush size
     pub fn draw_brush(&mut self, pos: IVec2, material: Material) {
         let bs = self.brush_size as i32;
         if bs == 1 {
@@ -289,12 +307,12 @@ impl Matrix {
         };
     }
 
+    /// Converts the brush_material_index to a Material
     pub fn get_material_from_brushindex(&self) -> Material {
         Material::iter().nth(self.brush_material_index).unwrap()
     }
 
-
-
+    /// New frame. Update the matrix (includes cells and chunks)
     pub fn update(&mut self) {
         // Tells all chunks that a new frame has begun
         for chunkrow in self.chunks.iter_mut() {
@@ -355,16 +373,14 @@ impl Matrix {
         };
     }
 
-
+    /// Renders all the cells into the pixel buffer
     pub fn draw(&self, screen: &mut [u8]) {
         debug_assert_eq!(screen.len(), 4 * self.cells.len());
         screen.fill(0);
-        //.skip(1)
         for c in self.cells.iter() {
-            
             let mut draw_color = c.color;
             
-            let chunk = self.get_chunk_for_pos_not_mut(c.pos);
+            let chunk = self.get_chunk_for_pos(c.pos);
             if let Some(chunk) = chunk {
                 if self.debug_draw && chunk.should_step {
                     draw_color = Color::RED;
@@ -379,7 +395,7 @@ impl Matrix {
         }
     }
 
-
+    /// Draws a line with the specified material
     pub fn set_line(&mut self, x0: isize, y0: isize, x1: isize, y1: isize, material: Material) {
         let x0 = x0.max(0).min(self.width as isize);
         let y0 = y0.max(0).min(self.height as isize);

@@ -35,7 +35,7 @@ impl Material {
 
     pub fn get_color(&self) -> Color {
         match self {
-            Material::Empty => Color::BLACK,
+            Material::Empty => Color::GREEN,
             Material::Sand => Color { r: 1.0, g: 1.0, b: 0.0, a: 1.0 },
             Material::Dirt => Color { r: 0.41, g: 0.25, b: 0.2, a: 1.0 },
             Material::Water => Color { r: 0.0, g: 0.0, b: 1.0, a: 1.0 },
