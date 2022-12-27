@@ -2,9 +2,10 @@
 #![forbid(unsafe_code)]
 
 use glam::IVec2;
+use image::GenericImageView;
 use log::{error};
 use strum::IntoEnumIterator;
-use pixels::{Error, Pixels, SurfaceTexture};
+use pixels::{Error, Pixels, SurfaceTexture, wgpu::{self}};
 use winit::{
     dpi::{LogicalSize, LogicalPosition},
     event::{Event, VirtualKeyCode, WindowEvent},
@@ -41,12 +42,14 @@ fn main() -> Result<(), Error> {
     };
 
     let mut life = Matrix::new_empty(WIDTH as usize, HEIGHT as usize);
+    // life.set_cell_material(IVec2::new(100, 80), Material::Sand, false);
+    // life.set_cell_material(IVec2::new(100, 30), Material::Dirt, false);
     let mut paused = false;
 
     event_loop.run(move |event, _, control_flow| {
         // The one and only event that winit_input_helper doesn't have for us...
         if let Event::RedrawRequested(_) = event {
-            //std::thread::sleep(core::time::Duration::from_millis(500));
+            //std::thread::sleep(core::time::Duration::from_millis(200));
             life.draw(pixels.get_frame_mut());
             if pixels
                 .render()

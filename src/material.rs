@@ -14,7 +14,7 @@ pub enum MaterialType {
 
 
 
-#[derive(Clone, Copy, PartialEq, EnumIter, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, EnumIter, Debug, Hash)]
 pub enum Material {
     Empty,
     Sand,
@@ -65,7 +65,7 @@ impl Material {
             Material::Empty => 0,
             Material::Sand => 1,
             Material::Dirt => 1,
-            Material::Water => 5,
+            Material::Water => 10,
         }
     }
 

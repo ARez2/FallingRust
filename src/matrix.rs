@@ -3,7 +3,7 @@ use log::{warn};
 use pixels::wgpu::Color;
 use strum::IntoEnumIterator;
 
-use crate::{Cell, Material, Chunk, cell_handler, CHUNK_SIZE};
+use crate::{Cell, TextureHandler, Material, Chunk, cell_handler, CHUNK_SIZE};
 const CHUNK_SIZE_I32: i32 = CHUNK_SIZE as i32;
 
 
@@ -30,6 +30,7 @@ pub struct Matrix {
     cells: Vec<Cell>,
     data: Vec<usize>,
     pub chunks: Vec<Vec<Chunk>>,
+    texturehandler: TextureHandler,
 
     pub debug_draw: bool,
     pub brush_size: u8,
@@ -63,6 +64,8 @@ impl Matrix {
             cells,
             data,
             chunks,
+            texturehandler: TextureHandler::new(),
+
             debug_draw: false,
             brush_size: 35,
             brush_material_index: 1,
@@ -191,6 +194,8 @@ impl Matrix {
 
     /// Appends the cell to self.cells and updates self.data with its index
     pub fn add_cell_to_cells(&mut self, cell: &mut Cell) {
+        cell.color = self.texturehandler.get_color_for_material(cell.pos, cell.material);
+
         let cell_at_pos = self.get_data_at_pos(cell.pos);
         // If there is already a cell at that position, replace that cell in self.cells with the new cell
         if cell_at_pos != 0 {
@@ -272,8 +277,8 @@ impl Matrix {
         };
         
         // Set both positions chunks active (new and previous cell position)
-        self.set_chunk_active(cellpos);
-        self.set_chunk_active(pos);
+        self.set_chunk_cluster_active(cellpos);
+        self.set_chunk_cluster_active(pos);
         let x_chunked = pos.x % CHUNK_SIZE_I32;
         let x_chunked_upper = CHUNK_SIZE_I32 - 1 - x_chunked;
         if x_chunked <= 5 || x_chunked_upper <= 5 {
@@ -292,7 +297,6 @@ impl Matrix {
                 self.set_chunk_active(pos + IVec2::new(0, CHUNK_SIZE_I32));
             }
         };
-
 
         //self.set_chunk_active(pos + cell_velocity.round().as_ivec2())
     }
@@ -399,6 +403,7 @@ impl Matrix {
     }
 
     /// Renders all the cells into the pixel buffer
+    // TODO: Only redraw when cell changed
     pub fn draw(&self, screen: &mut [u8]) {
         debug_assert_eq!(screen.len(), 4 * self.cells.len());
         screen.fill(0);
