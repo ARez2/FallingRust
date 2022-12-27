@@ -200,7 +200,6 @@ impl Matrix {
         // If there is already a cell at that position, replace that cell in self.cells with the new cell
         if cell_at_pos != 0 {
             let old = std::mem::replace(self.get_cell_from_cells_mut(cell_at_pos).unwrap(), *cell);
-            self.texturehandler.remove_material(old.material);
         } else {
             self.cells.push(*cell);
             let c_idx = self.cell_idx(cell.pos);
@@ -218,10 +217,6 @@ impl Matrix {
         self.data[data_idx] = 0;
         self.set_chunk_cluster_active(cellpos);
         let cell_to_remove_idx = cell_index - 1;
-        if cell_index != 0 {
-            let cellmat = self.cells[cell_to_remove_idx].material;
-            self.texturehandler.remove_material(cellmat);
-        };
         if cell_index == self.cells.len() {
             self.cells.remove(cell_to_remove_idx);
             return;

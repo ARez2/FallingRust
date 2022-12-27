@@ -10,7 +10,6 @@ const DEFAULT_MATERIAL_PATH: &'static str = ".\\..\\data\\textures\\materials";
 #[derive(Debug, )]
 pub struct TextureInfo {
     pub texture: Rgb32FImage,
-    pub being_used_by: usize,
 }
 
 pub struct TextureHandler {
@@ -25,61 +24,38 @@ impl TextureHandler {
     }
 
     pub fn get_color_for_material(&mut self, pos: IVec2, material: Material) -> Color {
-        let mut key_idx = None;
-        let mut output_color = Color { r: 1.0, g: 0.0, b: 0.8, a: 1.0 };
-        let mut i = 0;
         for m in self.loaded_textures.keys() {
             if m == &material {
-                key_idx = Some(i);
-                let tex = &self.loaded_textures.get(&m).unwrap().texture;
-                output_color = self.get_color_from_tex(pos, tex);
+                let tex = &self.loaded_textures.get(m).unwrap().texture;
+                return self.get_color_from_tex(pos, tex);
             };
-            i += 1;
         };
-        if key_idx.is_some() {
-            let info = self.loaded_textures.values_mut().nth(key_idx.unwrap()).unwrap();
-            info.being_used_by += 1;
-        } else {
-            let tex_name = match material {
-                Material::Dirt => "dirt.png",
-                Material::Sand => "sand.png",
-                Material::Water => "water.png",
-                _ => "../debug_color_02.png",
-            };
-            let cur_working_dir = std::env::current_dir().unwrap();
-            let path = cur_working_dir.join("data").join("textures").join("materials").join(tex_name);
-            
-            if path.exists() {
-                let s = path.to_str();
-                if let Some(filepath) = s {
-                    let vec = std::fs::read(filepath).unwrap();
-                    let diffuse_bytes = vec.as_slice();
-                    let diffuse_image = image::load_from_memory(diffuse_bytes).unwrap();
-                    let img = diffuse_image.to_rgb32f();
-                    let col = self.get_color_from_tex(pos, &img);
-                    self.loaded_textures.insert(material, TextureInfo {
-                        texture: img,
-                        being_used_by: 1,
-                    });
-                    println!("Add texture for {:?}", material);
-                    return col;
-                };
+        let tex_name = match material {
+            Material::Dirt => "dirt.png",
+            Material::Sand => "sand.png",
+            Material::Water => "water.png",
+            _ => "../debug_color_02.png",
+        };
+        //let p = Path::;
+        let cur_working_dir = std::env::current_dir().unwrap();
+        let path = cur_working_dir.join("data").join("textures").join("materials").join(tex_name);
+        
+        if path.exists() {
+            let s = path.to_str();
+            if let Some(filepath) = s {
+                let vec = std::fs::read(filepath).unwrap();
+                let diffuse_bytes = vec.as_slice();
+                let diffuse_image = image::load_from_memory(diffuse_bytes).unwrap();
+                let img = diffuse_image.to_rgb32f();
+                let col = self.get_color_from_tex(pos, &img);
+                self.loaded_textures.insert(material, TextureInfo {
+                    texture: img,
+                });
+                return col;
             };
         };
 
-        output_color
-    }
-
-    pub fn remove_material(&mut self, material: Material) {
-        let mat = self.loaded_textures.get_mut(&material);
-        if mat.is_some() {
-            let mat = mat.unwrap();
-            mat.being_used_by = mat.being_used_by.saturating_sub(1);
-            if mat.being_used_by == 0 {
-                self.loaded_textures.remove(&material);
-                println!("Remove texture for {:?}", material);
-            };
-        }
+        Color { r: 1.0, g: 0.0, b: 0.8, a: 1.0 }
     }
 
     fn get_color_from_tex(&self, pos: IVec2, tex: &Rgb32FImage) -> Color {
