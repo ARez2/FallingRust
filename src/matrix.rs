@@ -204,6 +204,9 @@ impl Matrix {
 
     /// Replaces the cell at cellpos with the last cell in self.cells (faster than shifting) and updates self.data
     pub fn remove_cell_from_cells(&mut self, cellpos: IVec2) {
+        if self.cells.is_empty() {
+            return;
+        };
         let cell_index = self.get_data_at_pos(cellpos);
         let data_idx = self.cell_idx(cellpos);
         self.data[data_idx] = 0;
@@ -264,7 +267,7 @@ impl Matrix {
             if cellmat == target_cellmat {
                 return;
             };
-            self.get_cell_from_cells_mut(data_at_targetpos).unwrap().pos = cellpos;
+            target_cell.pos = cellpos;
             self.data[cell_pos_index] = data_at_targetpos;
         };
         
@@ -272,7 +275,7 @@ impl Matrix {
         self.set_chunk_active(cellpos);
         self.set_chunk_active(pos);
         let x_chunked = pos.x % CHUNK_SIZE_I32;
-        let x_chunked_upper = CHUNK_SIZE_I32 - x_chunked;
+        let x_chunked_upper = CHUNK_SIZE_I32 - 1 - x_chunked;
         if x_chunked <= 5 || x_chunked_upper <= 5 {
             if x_chunked < x_chunked_upper {
                 self.set_chunk_active(pos - IVec2::new(CHUNK_SIZE_I32, 0));
@@ -281,7 +284,7 @@ impl Matrix {
             }
         };
         let y_chunked = pos.y % CHUNK_SIZE_I32;
-        let y_chunked_upper = CHUNK_SIZE_I32 - y_chunked;
+        let y_chunked_upper = CHUNK_SIZE_I32 - 1 - y_chunked;
         if y_chunked <= 5 || y_chunked_upper <= 5 {
             if y_chunked < y_chunked_upper {
                 self.set_chunk_active(pos - IVec2::new(0, CHUNK_SIZE_I32));
@@ -366,7 +369,6 @@ impl Matrix {
         };
     }
 
-
     /// Helper function to always execute the same logic regardless of wether iterating from the left or right side of the window
     fn step_all(&mut self, x: i32, y: i32, w: i32) {
         let cur_pos = IVec2::new(x, y);
@@ -390,6 +392,8 @@ impl Matrix {
                 cell.update();
                 cell.processed_this_frame = true;
                 cell_handler::handle_cell(self, cell_idx);
+                let cell = self.get_cell_by_cellindex_mut(cell_idx).unwrap();
+                cell.post_update();
             };
         };
     }

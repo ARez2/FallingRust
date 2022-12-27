@@ -28,7 +28,7 @@ impl Chunk {
         if !self.should_step {
             self.num_frames_without_step += 1;
 
-            if self.num_frames_without_step >= 60 {
+            if self.num_frames_without_step >= 200 {
                 self.should_step = true;
                 self.num_frames_without_step = 0;
             };

@@ -15,11 +15,11 @@ pub mod chunk;
 pub use chunk::Chunk;
 
 
-pub const CHUNK_SIZE: usize = 8;
-const NUM_CHUNKS: u32 = 160;//8 - 160, 16 - 80
+pub const CHUNK_SIZE: usize = 16;
+const NUM_CHUNKS: u32 = 15;//8 - 160, 16 - 80
 pub const WIDTH: u32 = CHUNK_SIZE as u32 * NUM_CHUNKS;
 pub const HEIGHT: u32 = CHUNK_SIZE as u32 * NUM_CHUNKS;
-pub const SCALE: f64 = 1.0;
+pub const SCALE: f64 = 5.0;
 
 
 /// Returns 1 or -1 at random

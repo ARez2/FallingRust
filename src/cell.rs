@@ -1,7 +1,6 @@
 use std::fmt::Display;
 
 use pixels::wgpu::Color;
-use crate::matrix::Matrix;
 use glam::{IVec2, Vec2};
 
 use crate::{Material, MaterialType};
@@ -37,8 +36,20 @@ impl Cell {
 
     /// Updates the cells properties
     pub fn update(&mut self) {
-        self.is_free_falling = self.pos.y != self.prev_pos.y;
         self.velocity += Vec2::new(0.0, 0.5);
+        // if self.is_free_falling {
+        //     self.color = Color::GREEN;
+        // } else {
+        //     self.color = self.material.get_color();
+        // };
+        self.velocity += Vec2::new(0.0, 0.5);
+        
+    }
+
+    /// Updates the cells properties after the cells has been handled by the cellhandler
+    pub fn post_update(&mut self) {
+        self.is_free_falling = self.pos.y != self.prev_pos.y;
+        
         self.prev_pos = self.pos;
     }
 
