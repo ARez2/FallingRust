@@ -2,9 +2,8 @@
 #![forbid(unsafe_code)]
 
 use glam::IVec2;
-use log::{debug, error};
+use log::{error};
 use strum::IntoEnumIterator;
-use std::env;
 use pixels::{Error, Pixels, SurfaceTexture};
 use winit::{
     dpi::{LogicalSize, LogicalPosition},
@@ -14,11 +13,8 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
-use falling_rust::{Matrix, Material};
+use falling_rust::{Matrix, Material, WIDTH, HEIGHT, SCALE};
 
-const WIDTH: u32 = 16*35;//15
-const HEIGHT: u32 = 16*35;
-const SCALE: f64 = 2.0;
 
 fn main() -> Result<(), Error> {
     //env::set_var("RUST_LOG", "falling_rust=debug");
@@ -86,9 +82,11 @@ fn main() -> Result<(), Error> {
             }
             if input.key_pressed(VirtualKeyCode::Up) {
                 life.brush_size = life.brush_size.saturating_add(1);
+                println!("Brush size: {}", life.brush_size);
             }
             if input.key_pressed(VirtualKeyCode::Down) {
                 life.brush_size = life.brush_size.saturating_sub(1);
+                println!("Brush size: {}", life.brush_size);
             }
             // Handle mouse. This is a bit involved since support some simple
             // line drawing (mostly because it makes nice looking patterns).

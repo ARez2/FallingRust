@@ -1,12 +1,10 @@
-use glam::{IVec2, Vec2};
-use log::{warn, debug, info};
+use glam::{IVec2};
+use log::{warn};
 use pixels::wgpu::Color;
 use strum::IntoEnumIterator;
 
-use crate::{Cell, Material, Chunk, cell_handler};
-
-const CHUNK_SIZE: usize = 16;
-pub const CHUNK_SIZE_I32: i32 = CHUNK_SIZE as i32;
+use crate::{Cell, Material, Chunk, cell_handler, CHUNK_SIZE};
+const CHUNK_SIZE_I32: i32 = CHUNK_SIZE as i32;
 
 
 /// Generate a pseudorandom seed for the game's PRNG.
@@ -51,12 +49,7 @@ impl Matrix {
         for y in (0..height as i32).step_by(CHUNK_SIZE) {
             let mut row = Vec::<Chunk>::new();
             for x in (0..width as i32).step_by(CHUNK_SIZE) {
-                let chunk = Chunk {
-                    should_step: false,
-                    should_step_next_frame: true,
-                    topleft: IVec2::new(x, y),
-                    size: CHUNK_SIZE,
-                };
+                let chunk = Chunk::new(IVec2::new(x, y), CHUNK_SIZE);
                 row.push(chunk);
             };
             chunks.push(row);
@@ -71,7 +64,7 @@ impl Matrix {
             data,
             chunks,
             debug_draw: false,
-            brush_size: 1,
+            brush_size: 35,
             brush_material_index: 1,
             update_left: true,
         }
@@ -190,6 +183,11 @@ impl Matrix {
         self.get_cell_from_cells_mut(cell_index)
     }
 
+    pub fn get_neighbor_cells(&self, pos: IVec2) -> [Option<&Cell>; 4] {
+        let left = IVec2::new(1, 0);
+        let down = IVec2::new(0, 1);
+        [self.get_cell(pos - left), self.get_cell(pos + left), self.get_cell(pos - down), self.get_cell(pos + down)]
+    }
 
     /// Appends the cell to self.cells and updates self.data with its index
     pub fn add_cell_to_cells(&mut self, cell: &mut Cell) {
@@ -248,7 +246,10 @@ impl Matrix {
             return;
         };
 
-        self.get_cell_from_cells_mut(data_at_cellpos).unwrap().pos = pos;
+        let cell = self.get_cell_from_cells_mut(data_at_cellpos).unwrap();
+        cell.pos = pos;
+        let cellmat = cell.material;
+        let cell_velocity = cell.velocity;
         self.data[target_pos_index] = data_at_cellpos;
 
         // Target cell is empty
@@ -257,7 +258,6 @@ impl Matrix {
                 self.data[cell_pos_index] = 0;
             };
         } else {
-            let cellmat = self.get_cell_from_cells_mut(data_at_cellpos).unwrap().material;
             let target_cell = self.get_cell_from_cells_mut(data_at_targetpos).unwrap();
             let target_cellmat = target_cell.material;
             
@@ -269,8 +269,29 @@ impl Matrix {
         };
         
         // Set both positions chunks active (new and previous cell position)
-        self.set_chunk_cluster_active(cellpos);
-        self.set_chunk_cluster_active(pos);
+        self.set_chunk_active(cellpos);
+        self.set_chunk_active(pos);
+        let x_chunked = pos.x % CHUNK_SIZE_I32;
+        let x_chunked_upper = CHUNK_SIZE_I32 - x_chunked;
+        if x_chunked <= 5 || x_chunked_upper <= 5 {
+            if x_chunked < x_chunked_upper {
+                self.set_chunk_active(pos - IVec2::new(CHUNK_SIZE_I32, 0));
+            } else {
+                self.set_chunk_active(pos + IVec2::new(CHUNK_SIZE_I32, 0));
+            }
+        };
+        let y_chunked = pos.y % CHUNK_SIZE_I32;
+        let y_chunked_upper = CHUNK_SIZE_I32 - y_chunked;
+        if y_chunked <= 5 || y_chunked_upper <= 5 {
+            if y_chunked < y_chunked_upper {
+                self.set_chunk_active(pos - IVec2::new(0, CHUNK_SIZE_I32));
+            } else {
+                self.set_chunk_active(pos + IVec2::new(0, CHUNK_SIZE_I32));
+            }
+        };
+
+
+        //self.set_chunk_active(pos + cell_velocity.round().as_ivec2())
     }
 
     /// Places a cell at position. Internally calls set_cell_by_pos but checks wether that cell already exists in self.cells

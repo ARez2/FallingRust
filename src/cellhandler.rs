@@ -2,8 +2,9 @@
 
 pub mod cell_handler {
     use glam::{IVec2, Vec2};
+    use pixels::wgpu::Color;
 
-    use crate::{Matrix, MaterialType, rand_multiplier};
+    use crate::{Matrix, MaterialType, rand_multiplier, Material};
 
     /// Function which gets called for all the cells.
     /// 
@@ -14,8 +15,10 @@ pub mod cell_handler {
             return;
         };
         let cell = cell.unwrap();
+        let cellpos = cell.pos;
+        let cellmat = cell.material;
 
-        let did_move = match cell.material.get_type() {
+        let did_move = match cellmat.get_type() {
             MaterialType::MovableSolid => movable_solid_step(matrix, cell_index),
             MaterialType::Liquid => liquid_step(matrix, cell_index),
             _ => false,
@@ -38,7 +41,7 @@ pub mod cell_handler {
                 (cell.is_free_falling, cell.pos)
             };
             
-            if freefall && is_movable_solid {
+            if freefall {
                 for y in -1..=1 {
                     for x in -1..=1 {
                         let p = IVec2::new(x, y);
@@ -61,7 +64,7 @@ pub mod cell_handler {
         };
 
         let cell = matrix.get_cell_by_cellindex_mut(cell_index).unwrap();
-        if is_movable_solid && !cell.is_free_falling {
+        if !cell.is_free_falling {
             cell.velocity = Vec2::ZERO;
             return false;
         };
@@ -73,9 +76,12 @@ pub mod cell_handler {
                 fac = -1.0;
             };
         };
+        // TODO: Maybe split up this function even more so i dont have to add liquid logic in here
         if is_movable_solid {
             cell.velocity.x = (cell.velocity.y / 4.0) * fac;
             cell.velocity.y *= -0.1;
+        } else {
+            cell.velocity.y = 0.0;
         };
         
         let x_vel_check = cell.velocity.x.round().abs().max(1.0) as i32;
@@ -103,16 +109,14 @@ pub mod cell_handler {
         if movable_solid_step(matrix, cell_index) {
             return true;
         };
-
-        let cell = matrix.get_cell_by_cellindex_mut(cell_index);
-        if cell.is_none() {
-            return false;
-        };
-        let cell = cell.unwrap();        
-        let disp = cell.material.get_dispersion() as i32;
-        let cellpos = cell.pos;
         
-        let horizontal_movement = cellpos + IVec2::new(disp * rand_multiplier(), 0);
+        let cell = matrix.get_cell_by_cellindex_mut(cell_index).unwrap();
+        let cellpos = cell.pos;
+        let cellmat = cell.material;
+        let disp = cellmat.get_dispersion() as i32;
+        let dir = rand_multiplier();
+        
+        let horizontal_movement = cellpos + IVec2::new(disp * dir, 0);
         if try_move(matrix, cell_index, horizontal_movement, false) {
             return true;
         };
@@ -141,7 +145,6 @@ pub mod cell_handler {
         
         let x0 = cellpos.x.max(0).min(width);
         let y0 = cellpos.y.max(0).min(height);
-        let mut num_steps = 0;
         for (x, y) in line_drawing::WalkGrid::new((x0, y0), (to_pos.x, to_pos.y)) {
             let cur_pos = IVec2::new(x as i32, y as i32);
             if cur_pos == cellpos {
@@ -149,11 +152,10 @@ pub mod cell_handler {
             };
             let target_cell = matrix.get_cell(cur_pos);
             if let Some(tcell) = target_cell {
-                if num_steps > 1 {
+                let tcell_mat = tcell.material;
+                if tcell_mat == cellmat && !diagonal {
                     break;
-                };
-                //println!("Target cell: {}    own material density: {}", tcell, cellmat.get_density());
-                if tcell.material.get_density() < cellmat.get_density() {
+                } else if tcell_mat.get_density() < cellmat.get_density() {
                     last_possible_cell = Some(cur_pos);
                 };
                 if last_possible_cell.is_none() && !diagonal {
@@ -165,8 +167,6 @@ pub mod cell_handler {
                     last_possible_cell = Some(cur_pos);
                 };
             };
-
-            num_steps += 1;
         };
 
         match last_possible_cell {
