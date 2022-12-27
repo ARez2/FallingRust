@@ -16,9 +16,9 @@ use winit_input_helper::WinitInputHelper;
 
 use falling_rust::{Matrix, Material};
 
-const WIDTH: u32 = 16*15;
-const HEIGHT: u32 = 16*15;
-const SCALE: f64 = 5.0;
+const WIDTH: u32 = 16*35;//15
+const HEIGHT: u32 = 16*35;
+const SCALE: f64 = 2.0;
 
 fn main() -> Result<(), Error> {
     //env::set_var("RUST_LOG", "falling_rust=debug");

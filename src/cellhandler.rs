@@ -85,7 +85,7 @@ pub mod cell_handler {
         let bottom_right = cellpos + IVec2::new(1 * disp * x_vel_check, 1);
         let mut first = bottom_left;
         let mut second = bottom_right;
-        if true {//rand::random()
+        if rand::random() {
             first = bottom_right;
             second = bottom_left
         };
