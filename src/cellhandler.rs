@@ -125,7 +125,7 @@ pub mod cell_handler {
 
     /// Tries to move the cell to the specified position. Stops when it encounters an obstacle
     fn try_move(matrix: &mut Matrix, cell_index: usize, mut to_pos: IVec2, diagonal: bool) -> bool {
-        to_pos = matrix.clamp_pos(to_pos);
+        //to_pos = matrix.clamp_pos(to_pos);
         let mut last_possible_cell: Option<_> = None;
         
         let width = matrix.width as i32;
@@ -145,6 +145,7 @@ pub mod cell_handler {
         
         let x0 = cellpos.x.max(0).min(width);
         let y0 = cellpos.y.max(0).min(height);
+        let mut num_steps = 0;
         for (x, y) in line_drawing::WalkGrid::new((x0, y0), (to_pos.x, to_pos.y)) {
             let cur_pos = IVec2::new(x as i32, y as i32);
             if cur_pos == cellpos {
@@ -152,6 +153,10 @@ pub mod cell_handler {
             };
             let target_cell = matrix.get_cell(cur_pos);
             if let Some(tcell) = target_cell {
+                if num_steps > 1 {
+                    break;
+                };
+
                 let tcell_mat = tcell.material;
                 if tcell_mat == cellmat && !diagonal {
                     break;
@@ -167,6 +172,8 @@ pub mod cell_handler {
                     last_possible_cell = Some(cur_pos);
                 };
             };
+
+            num_steps += 1;
         };
 
         match last_possible_cell {
