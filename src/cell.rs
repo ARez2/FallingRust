@@ -42,7 +42,7 @@ impl Cell {
         // } else {
         //     self.color = self.material.get_color();
         // };
-        self.velocity += Vec2::new(0.0, 0.5);
+        //self.velocity += Vec2::new(0.0, 0.5);
         
     }
 

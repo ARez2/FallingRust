@@ -1,11 +1,10 @@
 use image::{Rgb32FImage};
-use std::{collections::{HashSet, HashMap}, path::Path};
+use std::{collections::HashMap};
 use glam::IVec2;
 use pixels::wgpu::Color;
 
 use crate::Material;
 
-const DEFAULT_MATERIAL_PATH: &'static str = ".\\..\\data\\textures\\materials";
 
 #[derive(Debug, )]
 pub struct TextureInfo {
@@ -51,11 +50,12 @@ impl TextureHandler {
                 Material::Sand => "sand.png",
                 Material::Water => "water.png",
                 Material::Rock => "rock.png",
+                Material::Smoke => "smoke.png",
                 _ => "../debug_color_02.png",
             };
             let cur_working_dir = std::env::current_dir().unwrap();
             let path = cur_working_dir.join("data").join("textures").join("materials").join(tex_name);
-
+            println!("{:?}", path);
             if path.exists() {
                 let s = path.to_str();
                 if let Some(filepath) = s {

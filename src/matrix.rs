@@ -6,16 +6,19 @@ use strum::IntoEnumIterator;
 use crate::{Cell, TextureHandler, Material, Chunk, cell_handler, CHUNK_SIZE};
 const CHUNK_SIZE_I32: i32 = CHUNK_SIZE as i32;
 
+// TODO: Add rigidbodies (https://youtu.be/prXuyMCgbTc?t=358)
+// TODO: Add sprite system
+// TODO: Add fire
+// TODO: Maybe add (verlet) rope physics
+// TODO: Camera system
+
 
 /// Generate a pseudorandom seed for the game's PRNG.
 fn generate_seed() -> (u64, u64) {
     use byteorder::{ByteOrder, NativeEndian};
     use getrandom::getrandom;
-
     let mut seed = [0_u8; 16];
-
     getrandom(&mut seed).expect("failed to getrandom");
-
     (
         NativeEndian::read_u64(&seed[0..8]),
         NativeEndian::read_u64(&seed[8..16]),

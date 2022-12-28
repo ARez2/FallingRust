@@ -21,6 +21,7 @@ pub mod cell_handler {
         let did_move = match cellmat.get_type() {
             MaterialType::MovableSolid => movable_solid_step(matrix, cell_index),
             MaterialType::Liquid => liquid_step(matrix, cell_index),
+            MaterialType::Gas => gas_step(matrix, cell_index),
             _ => false,
         };
     }
@@ -94,6 +95,32 @@ pub mod cell_handler {
         if rand::random() {
             first = bottom_right;
             second = bottom_left
+        };
+        if try_move(matrix, cell_index, first, true) {
+            return true;
+        };
+        if try_move(matrix, cell_index, second, true) {
+            return true;
+        };
+        return false;
+    }
+
+    /// Handles the cell logic for gases (upside down movable solids)
+    fn gas_step(matrix: &mut Matrix, cell_index: usize) -> bool {
+        let (cellpos, cellmat) = {let c = matrix.get_cell_by_cellindex_mut(cell_index).unwrap(); (c.pos, c.material)};
+        let up = cellpos + IVec2::new(0, -1);
+        if try_move(matrix, cell_index, up, false) {
+            return true;
+        };
+
+        let disp = cellmat.get_dispersion() as i32;
+        let up_left = cellpos + IVec2::new(-1 * disp, -1);
+        let up_right = cellpos + IVec2::new(1 * disp, -1);
+        let mut first = up_left;
+        let mut second = up_right;
+        if rand::random() {
+            first = up_right;
+            second = up_left
         };
         if try_move(matrix, cell_index, first, true) {
             return true;
