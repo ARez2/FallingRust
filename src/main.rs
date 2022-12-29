@@ -5,7 +5,7 @@ use glam::IVec2;
 use image::GenericImageView;
 use log::{error};
 use strum::IntoEnumIterator;
-use pixels::{Error, Pixels, SurfaceTexture, wgpu::{self}};
+use pixels::{Error, Pixels, SurfaceTexture};
 use winit::{
     dpi::{LogicalSize, LogicalPosition},
     event::{Event, VirtualKeyCode, WindowEvent},

@@ -2,9 +2,8 @@
 
 pub mod cell_handler {
     use glam::{IVec2, Vec2};
-    use pixels::wgpu::Color;
 
-    use crate::{Matrix, MaterialType, rand_multiplier, Material};
+    use crate::{Matrix, MaterialType, rand_multiplier};
 
     /// Function which gets called for all the cells.
     /// 

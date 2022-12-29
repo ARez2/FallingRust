@@ -11,6 +11,8 @@ const CHUNK_SIZE_I32: i32 = CHUNK_SIZE as i32;
 // TODO: Add fire
 // TODO: Maybe add (verlet) rope physics
 // TODO: Camera system
+// TODO: UI System (https://github.com/parasyte/pixels/tree/main/examples/minimal-egui)
+// TODO: Physics (https://parry.rs/)
 
 
 /// Generate a pseudorandom seed for the game's PRNG.
