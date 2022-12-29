@@ -175,6 +175,14 @@ impl Matrix {
         }
     }
 
+    /// Returns a reference to the cell based on cell_index
+    pub fn get_cell_by_cellindex(&self, cell_index: usize) -> Option<&Cell> {
+        if cell_index > self.cells.len() {
+            return None;
+        };
+        self.get_cell_from_cells(cell_index)
+    }
+
     /// Returns a mutable reference to the cell based on cell_index
     pub fn get_cell_by_cellindex_mut(&mut self, cell_index: usize) -> Option<&mut Cell> {
         if cell_index > self.cells.len() {
@@ -190,17 +198,17 @@ impl Matrix {
     }
 
     /// Appends the cell to self.cells and updates self.data with its index
-    pub fn add_cell_to_cells(&mut self, cell: &mut Cell) {
+    pub fn add_cell_to_cells(&mut self, mut cell: Cell) {
         cell.color = self.texturehandler.get_color_for_material(cell.pos, cell.material);
 
         let cell_at_pos = self.get_data_at_pos(cell.pos);
         // If there is already a cell at that position, replace that cell in self.cells with the new cell
         if cell_at_pos != 0 {
-            let old = std::mem::replace(self.get_cell_from_cells_mut(cell_at_pos).unwrap(), *cell);
+            let old = std::mem::replace(self.get_cell_from_cells_mut(cell_at_pos).unwrap(), cell);
             self.texturehandler.remove_material(old.material);
         } else {
-            self.cells.push(*cell);
             let c_idx = self.cell_idx(cell.pos);
+            self.cells.push(cell);
             self.data[c_idx] = self.cells.len();
         };
     }
@@ -239,8 +247,8 @@ impl Matrix {
         };
         pos = self.clamp_pos(pos);
         let mut cell = Cell::new(pos, material);
-        self.add_cell_to_cells(&mut cell);
-        self.set_cell_by_pos(pos, cell.pos, swap);
+        self.add_cell_to_cells(cell);
+        self.set_cell_by_pos(pos, pos, swap);
     }
 
     /// Places a cell which is located at cellpos at the specified target position (pos)
@@ -301,23 +309,6 @@ impl Matrix {
         };
 
         //self.set_chunk_active(pos + cell_velocity.round().as_ivec2())
-    }
-
-    /// Places a cell at position. Internally calls set_cell_by_pos but checks wether that cell already exists in self.cells
-    pub fn set_cell(&mut self, pos: IVec2, cell: &mut Cell, swap: bool) {
-        if !self.is_in_bounds(pos) {
-            warn!("Pos out of range");
-            return;
-        };
-        if self.get_data_at_pos(cell.pos) == 0 {
-            if !self.cells.contains(cell) {
-                self.add_cell_to_cells(cell);
-            };
-        };
-        if cell.pos == pos {
-            return;
-        };
-        self.set_cell_by_pos(pos, cell.pos, swap);
     }
 
     /// Places cells in the specified brush size
