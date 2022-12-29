@@ -407,7 +407,7 @@ impl Matrix {
     /// Renders all the cells into the pixel buffer
     // TODO: Only redraw when cell changed
     pub fn draw(&self, screen: &mut [u8]) {
-        debug_assert_eq!(screen.len(), 4 * self.cells.len());
+        //debug_assert_eq!(screen.len(), 4 * self.cells.len());
         screen.fill(0);
         for c in self.cells.iter() {
             let mut draw_color = c.color;
