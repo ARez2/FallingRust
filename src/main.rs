@@ -14,7 +14,8 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
-use falling_rust::{Matrix, Material, WIDTH, HEIGHT, SCALE};
+use falling_rust::{Matrix, Material, WIDTH, HEIGHT, SCALE, Framework};
+
 
 
 fn main() -> Result<(), Error> {
@@ -35,10 +36,19 @@ fn main() -> Result<(), Error> {
             .unwrap()
     };
 
-    let mut pixels = {
+    let (mut pixels, mut framework) = {
         let window_size = window.inner_size();
+        let scale_factor = window.scale_factor() as f32;
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        Pixels::new(WIDTH, HEIGHT, surface_texture)?
+        let pixels = Pixels::new(WIDTH, HEIGHT, surface_texture)?;
+        let framework = Framework::new(
+            &event_loop,
+            window_size.width,
+            window_size.height,
+            scale_factor,
+            &pixels,
+        );
+        (pixels, framework)
     };
 
     let mut life = Matrix::new_empty(WIDTH as usize, HEIGHT as usize);
@@ -51,16 +61,56 @@ fn main() -> Result<(), Error> {
         if let Event::RedrawRequested(_) = event {
             //std::thread::sleep(core::time::Duration::from_millis(200));
             life.draw(pixels.get_frame_mut());
-            if pixels
-                .render()
-                .map_err(|e| error!("pixels.render() failed: {}", e))
-                .is_err()
-            {
+
+            // Prepare egui
+            let gui_output = framework.prepare(&window, &mut life.texturehandler);
+            life.brush_material_index = Material::iter().position(|x| x == gui_output.material_selected).unwrap();
+
+            // Render everything together
+            let render_result = pixels.render_with(|encoder, render_target, context| {
+                // Render the world texture
+                context.scaling_renderer.render(encoder, render_target);
+
+                // Render egui
+                framework.render(encoder, render_target, context);
+
+                Ok(())
+            });
+
+            // Basic error handling
+            if let Err(err) = render_result {
+                error!("pixels.render() failed: {err}");
                 *control_flow = ControlFlow::Exit;
-                return;
             }
         }
 
+        if let Event::WindowEvent {event, .. } = &event {
+            if framework.handle_event(event) {
+                return;
+            };
+            match event {
+                WindowEvent::MouseWheel { delta, ..} => match delta {
+                    winit::event::MouseScrollDelta::LineDelta(x, y) => {
+                        if y > &0.0 {
+                            life.brush_material_index += 1;
+                            if life.brush_material_index >= Material::iter().count() {
+                                life.brush_material_index = 0;
+                            };
+                        } else if y < &0.0 {
+                            if life.brush_material_index == 0 {
+                                life.brush_material_index = Material::iter().count() - 1;
+                            } else {
+                                life.brush_material_index -= 1;
+                            };
+                        };
+                        println!("Material: {:?}", life.get_material_from_brushindex());
+                    },
+                    _ => (),
+                },
+                _ => (),
+            }
+        }
+        
         // For everything else, for let winit_input_helper collect events to build its state.
         // It returns `true` when it is time to update our game state and request a redraw.
         if input.update(&event) {
@@ -99,22 +149,22 @@ fn main() -> Result<(), Error> {
                     let (dx, dy) = input.mouse_diff();
                     let prev_x = mx - dx;
                     let prev_y = my - dy;
-
+                    
                     let (mx_i, my_i) = pixels
-                        .window_pos_to_pixel((mx, my))
-                        .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
-
+                    .window_pos_to_pixel((mx, my))
+                    .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
+                    
                     let (px_i, py_i) = pixels
-                        .window_pos_to_pixel((prev_x, prev_y))
-                        .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
-
+                    .window_pos_to_pixel((prev_x, prev_y))
+                    .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
+                    
                     (
                         (mx_i as isize, my_i as isize),
                         (px_i as isize, py_i as isize),
                     )
                 })
                 .unwrap_or_default();
-
+                
             if input.mouse_pressed(0) {
                 //println!("Mouse click at {:?}", mouse_cell);
                 let pos = IVec2::new(mouse_cell.0 as i32, mouse_cell.1 as i32);
@@ -140,41 +190,27 @@ fn main() -> Result<(), Error> {
             }
             // Resize the window
             if let Some(size) = input.window_resized() {
-                pixels.resize_surface(size.width, size.height);
+                if let Err(err) = pixels.resize_surface(size.width, size.height) {
+                    error!("pixels.resize_surface() failed: {err}");
+                    *control_flow = ControlFlow::Exit;
+                    return;
+                }
+                framework.resize(size.width, size.height);
+            }
+            // Update the scale factor
+            if let Some(scale_factor) = input.scale_factor() {
+                framework.scale_factor(scale_factor);
             }
             if !paused || input.key_pressed_os(VirtualKeyCode::Space) {
                 life.update();
             }
             window.request_redraw();
         };
-
-        if let Event::WindowEvent {event, .. } = event {
-            match event {
-                WindowEvent::MouseWheel { delta, ..} => match delta {
-                    winit::event::MouseScrollDelta::LineDelta(x, y) => {
-                        if y > 0.0 {
-                            life.brush_material_index += 1;
-                            if life.brush_material_index >= Material::iter().count() {
-                                life.brush_material_index = 0;
-                            };
-                        } else if y < 0.0 {
-                            if life.brush_material_index == 0 {
-                                life.brush_material_index = Material::iter().count() - 1;
-                            } else {
-                                life.brush_material_index -= 1;
-                            };
-                        };
-                        println!("Material: {:?}", life.get_material_from_brushindex());
-                    },
-                    _ => (),
-                },
-                _ => (),
-            }
-        }
     });
 }
-
-
-
-
-
+    
+    
+    
+    
+    
+    

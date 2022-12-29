@@ -8,13 +8,17 @@ pub use cellhandler::cell_handler;
 pub mod material;
 pub use material::{Material, MaterialType};
 
+pub mod gui;
+pub use gui::Framework;
+
 pub mod texturehandler;
-use texturehandler::TextureHandler;
+pub use texturehandler::TextureHandler;
 pub mod matrix;
 pub use matrix::Matrix;
 
 pub mod chunk;
 pub use chunk::Chunk;
+
 
 
 pub const CHUNK_SIZE: usize = 16;

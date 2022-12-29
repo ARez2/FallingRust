@@ -35,7 +35,7 @@ pub struct Matrix {
     cells: Vec<Cell>,
     data: Vec<usize>,
     pub chunks: Vec<Vec<Chunk>>,
-    texturehandler: TextureHandler,
+    pub texturehandler: TextureHandler,
 
     pub debug_draw: bool,
     pub brush_size: u8,
