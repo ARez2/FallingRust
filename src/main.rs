@@ -18,7 +18,7 @@ use falling_rust::{Matrix, Material, WIDTH, HEIGHT, SCALE, Framework};
 
 
 // TODO: Add rigidbodies (https://youtu.be/prXuyMCgbTc?t=358)
-// TODO: Add sprite system
+// TODO: Add sprite system (https://github.com/parasyte/pixels/tree/main/examples/invaders/simple-invaders)
 // TODO: Add fire
 // TODO: Maybe add (verlet) rope physics
 // TODO: Camera system
