@@ -1,13 +1,13 @@
-use std::fmt::Display;
+use std::{fmt::Display, rc::Rc};
 
 use pixels::wgpu::Color;
 use glam::{IVec2, Vec2};
 
-use crate::{Material, MaterialType};
+use crate::{Material, MaterialType, rand_multiplier};
 
 
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Cell {
     pub pos: IVec2,
     prev_pos: IVec2,
@@ -17,6 +17,7 @@ pub struct Cell {
     pub material: Material,
     pub processed_this_frame: bool,
     pub is_free_falling: bool,
+    pub is_on_fire: bool,
 }
 
 impl Cell {
@@ -31,12 +32,18 @@ impl Cell {
             color: material.get_color(),
             processed_this_frame: false,
             is_free_falling: true,
+            is_on_fire: false,
         }
     }
 
     /// Updates the cells properties
     pub fn update(&mut self) {
         self.velocity += Vec2::new(0.0, 0.5);
+
+        if self.is_on_fire {
+            self.hp = self.hp.saturating_sub(1);
+            self.color = Color {r: 1.0, g: 0.25 + 0.25 * rand_multiplier() as f64, b: 0.0, a: 1.0}
+        };
         // if self.is_free_falling {
         //     self.color = Color::GREEN;
         // } else {

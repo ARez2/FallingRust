@@ -3,7 +3,7 @@
 pub mod cell_handler {
     use glam::{IVec2, Vec2};
 
-    use crate::{Matrix, MaterialType, rand_multiplier};
+    use crate::{Matrix, MaterialType, rand_multiplier, Material, Cell};
 
     /// Function which gets called for all the cells.
     /// 
@@ -15,7 +15,19 @@ pub mod cell_handler {
         };
         let cell = cell.unwrap();
         let cellpos = cell.pos;
+        let hp = cell.hp;
+        let on_fire = cell.is_on_fire;
         let cellmat = cell.material;
+        
+        // This cell died; delete it
+        if hp == 0 {
+            matrix.set_cell_material(cellpos, Material::Empty, false);
+            return;
+        };
+
+        if on_fire {
+            fire_step(matrix, cell_index);
+        };
 
         let did_move = match cellmat.get_type() {
             MaterialType::MovableSolid => movable_solid_step(matrix, cell_index),
@@ -211,6 +223,35 @@ pub mod cell_handler {
                 }
             },
         }
+
+        return false;
+    }
+
+    /// Handles fire logic
+    fn fire_step(matrix: &mut Matrix, cell_index: usize) -> bool {
+        let cell = matrix.get_cell_by_cellindex_mut(cell_index).unwrap();
+        cell.hp = cell.hp.saturating_sub(1);
+        let hp = cell.hp;
+        let cellpos = cell.pos;
+        let mut spread = vec![];
+        let neighbours = matrix.get_neighbor_cells(cellpos);
+        for n in neighbours {
+            if let Some(n_cell) = n {
+                let flammability = n_cell.material.get_flammability();
+                if n_cell.is_on_fire {
+                    continue;
+                };
+                if rand::random::<f32>() < flammability {
+                    spread.push(n_cell.pos);
+                };
+            };
+        };
+        // If this fire cell did find another cell to spread to
+        for spread_cell_pos in spread {
+            if let Some(spread_cell) = matrix.get_cell_mut(spread_cell_pos) {
+                spread_cell.is_on_fire = true;
+            };
+        };
 
         return false;
     }

@@ -3,7 +3,7 @@ use log::{warn};
 use pixels::wgpu::Color;
 use strum::IntoEnumIterator;
 
-use crate::{Cell, TextureHandler, Material, Chunk, cell_handler, CHUNK_SIZE};
+use crate::{Cell, TextureHandler, Material, Chunk, cell_handler, CHUNK_SIZE, brush::Brush};
 const CHUNK_SIZE_I32: i32 = CHUNK_SIZE as i32;
 
 
@@ -30,9 +30,9 @@ pub struct Matrix {
     pub texturehandler: TextureHandler,
 
     pub debug_draw: bool,
-    pub brush_size: u8,
-    pub brush_material_index: usize,
     pub update_left: bool,
+    pub brush: Brush,
+    pub wait_time_after_frame: f32,
 }
 
 impl Matrix {
@@ -64,9 +64,9 @@ impl Matrix {
             texturehandler: TextureHandler::new(),
 
             debug_draw: false,
-            brush_size: 35,
-            brush_material_index: 1,
+            brush: Brush::new(),
             update_left: true,
+            wait_time_after_frame: 0.0,
         }
     }
 
@@ -191,6 +191,7 @@ impl Matrix {
         self.get_cell_from_cells_mut(cell_index)
     }
 
+    /// Returns a reference to all the neighbor cells around a position
     pub fn get_neighbor_cells(&self, pos: IVec2) -> [Option<&Cell>; 4] {
         let left = IVec2::new(1, 0);
         let down = IVec2::new(0, 1);
@@ -313,8 +314,8 @@ impl Matrix {
 
     /// Places cells in the specified brush size
     pub fn draw_brush(&mut self, pos: IVec2, material: Material) {
-        let bs = self.brush_size as i32;
-        if bs == 1 {
+        let bs = self.brush.size as i32;
+        if bs == 1 && !self.brush.place_fire {
             self.set_cell_material(pos, material, false);
             return;
         };
@@ -323,14 +324,16 @@ impl Matrix {
         let upper = bs_2.ceil() as i32;
         for y in (pos.y-lower..pos.y+upper).rev() {
             for x in pos.x-lower..pos.x+upper {
-                self.set_cell_material(IVec2::new(x, y), material, false);
+                let cur_pos = IVec2::new(x, y);
+                if self.brush.place_fire {
+                    if let Some(c) = self.get_cell_mut(cur_pos) {
+                        c.is_on_fire = true;
+                    };
+                } else {
+                    self.set_cell_material(cur_pos, material, false);
+                };
             };
         };
-    }
-
-    /// Converts the brush_material_index to a Material
-    pub fn get_material_from_brushindex(&self) -> Material {
-        Material::iter().nth(self.brush_material_index).unwrap()
     }
 
     /// New frame. Update the matrix (includes cells and chunks)
@@ -389,8 +392,11 @@ impl Matrix {
                 cell.update();
                 cell.processed_this_frame = true;
                 cell_handler::handle_cell(self, cell_idx);
-                let cell = self.get_cell_by_cellindex_mut(cell_idx).unwrap();
-                cell.post_update();
+                let cell = self.get_cell_by_cellindex_mut(cell_idx);
+                // Need to do this because cell could have died within the cellhandler
+                if let Some(cell) = cell {
+                    cell.post_update();
+                };
             };
         };
     }

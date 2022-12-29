@@ -67,12 +67,13 @@ fn main() -> Result<(), Error> {
     event_loop.run(move |event, _, control_flow| {
         // The one and only event that winit_input_helper doesn't have for us...
         if let Event::RedrawRequested(_) = event {
-            //std::thread::sleep(core::time::Duration::from_millis(200));
+            if life.wait_time_after_frame > 0.0 {
+                std::thread::sleep(core::time::Duration::from_millis(life.wait_time_after_frame.round() as u64));
+            };
             life.draw(pixels.get_frame_mut());
 
             // Prepare egui
-            let gui_output = framework.prepare(&window, &mut life.texturehandler);
-            life.brush_material_index = Material::iter().position(|x| x == gui_output.material_selected).unwrap();
+            framework.prepare(&window, &mut life);
 
             // Render everything together
             let render_result = pixels.render_with(|encoder, render_target, context| {
@@ -100,18 +101,11 @@ fn main() -> Result<(), Error> {
                 WindowEvent::MouseWheel { delta, ..} => match delta {
                     winit::event::MouseScrollDelta::LineDelta(x, y) => {
                         if y > &0.0 {
-                            life.brush_material_index += 1;
-                            if life.brush_material_index >= Material::iter().count() {
-                                life.brush_material_index = 0;
-                            };
+                            life.brush.increase_material_index();
                         } else if y < &0.0 {
-                            if life.brush_material_index == 0 {
-                                life.brush_material_index = Material::iter().count() - 1;
-                            } else {
-                                life.brush_material_index -= 1;
-                            };
+                            life.brush.decrease_material_index();
                         };
-                        println!("Material: {:?}", life.get_material_from_brushindex());
+                        println!("Material: {:?}", life.brush.get_material_from_index());
                     },
                     _ => (),
                 },
@@ -142,12 +136,12 @@ fn main() -> Result<(), Error> {
                 println!("Debug: {}", life.debug_draw);
             }
             if input.key_pressed(VirtualKeyCode::Up) {
-                life.brush_size = life.brush_size.saturating_add(1);
-                println!("Brush size: {}", life.brush_size);
+                life.brush.size = life.brush.size.saturating_add(1);
+                println!("Brush size: {}", life.brush.size);
             }
             if input.key_pressed(VirtualKeyCode::Down) {
-                life.brush_size = life.brush_size.saturating_sub(1);
-                println!("Brush size: {}", life.brush_size);
+                life.brush.size = life.brush.size.saturating_sub(1);
+                println!("Brush size: {}", life.brush.size);
             }
             // Handle mouse. This is a bit involved since support some simple
             // line drawing (mostly because it makes nice looking patterns).
@@ -176,7 +170,7 @@ fn main() -> Result<(), Error> {
             if input.mouse_pressed(0) {
                 //println!("Mouse click at {:?}", mouse_cell);
                 let pos = IVec2::new(mouse_cell.0 as i32, mouse_cell.1 as i32);
-                life.draw_brush(pos, life.get_material_from_brushindex());
+                life.draw_brush(pos, life.brush.get_material_from_index());
             } else {
                 let release = input.mouse_released(0);
                 let held = input.mouse_held(0);
@@ -188,7 +182,7 @@ fn main() -> Result<(), Error> {
                         mouse_prev_cell.1,
                         mouse_cell.0,
                         mouse_cell.1,
-                        life.get_material_from_brushindex(),
+                        life.brush.get_material_from_index(),
                     );
                 }
                 // If they let go or are otherwise not clicking anymore, stop drawing.

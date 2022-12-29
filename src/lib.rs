@@ -13,6 +13,7 @@ pub use gui::Framework;
 
 pub mod texturehandler;
 pub use texturehandler::TextureHandler;
+pub mod brush;
 pub mod matrix;
 pub use matrix::Matrix;
 

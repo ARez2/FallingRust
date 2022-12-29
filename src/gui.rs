@@ -2,7 +2,7 @@ use egui::{ClippedPrimitive, Context, TexturesDelta, TextureHandle, ColorImage, 
 use egui_wgpu::renderer::{Renderer, ScreenDescriptor};
 use strum::IntoEnumIterator;
 
-use crate::Material;
+use crate::{Material, Matrix};
 use crate::texturehandler::TextureHandler;
 
 use pixels::{wgpu, PixelsContext};
@@ -23,27 +23,7 @@ pub struct Framework {
 
     // State for the GUI
     gui: Gui,
-    gui_output: GuiOutput,
 }
-
-/// Example application state. A real application will need a lot more state than this.
-struct Gui {
-    /// Only show the egui window when true.
-    window_open: bool,
-    material_textures: Vec<(TextureHandle, Material)>,
-}
-
-pub struct GuiOutput {
-    pub material_selected: Material,
-}
-impl GuiOutput {
-    pub fn new() -> Self {
-        Self {
-            material_selected: Material::Sand,
-        }
-    }
-}
-
 
 impl Framework {
     /// Create egui.
@@ -67,7 +47,6 @@ impl Framework {
         let renderer = Renderer::new(pixels.device(), pixels.render_texture_format(), None, 1);
         let textures = TexturesDelta::default();
         let gui = Gui::new();
-        let gui_output = GuiOutput::new();
 
         Self {
             egui_ctx,
@@ -77,7 +56,6 @@ impl Framework {
             paint_jobs: Vec::new(),
             textures,
             gui,
-            gui_output,
         }
     }
 
@@ -100,21 +78,19 @@ impl Framework {
     }
 
     /// Prepare egui.
-    pub fn prepare(&mut self, window: &Window, texturehandler: &mut TextureHandler) -> &GuiOutput {
+    pub fn prepare(&mut self, window: &Window, matrix: &mut Matrix) {
         // Run the egui frame and create all paint jobs to prepare for rendering.
         let raw_input = self.egui_state.take_egui_input(window);
 
         let output = self.egui_ctx.run(raw_input, |egui_ctx| {
             // Draw the demo application.
-            self.gui.ui(egui_ctx, texturehandler, &mut self.gui_output);
+            self.gui.ui(egui_ctx, matrix);
         });
 
         self.textures.append(output.textures_delta);
         self.egui_state
             .handle_platform_output(window, &self.egui_ctx, output.platform_output);
         self.paint_jobs = self.egui_ctx.tessellate(output.shapes);
-
-        &self.gui_output
     }
 
     /// Render egui.
@@ -164,8 +140,15 @@ impl Framework {
     }
 }
 
+
+
+/// Example application state. A real application will need a lot more state than this.
+struct Gui {
+    /// Only show the egui window when true.
+    window_open: bool,
+    material_textures: Vec<(TextureHandle, Material)>,
+}
 impl Gui {
-    /// Create a `Gui`.
     fn new() -> Self {
         let material_textures = vec![];
         Self {
@@ -174,8 +157,7 @@ impl Gui {
         }
     }
 
-    /// Create the UI using egui.
-    fn ui(&mut self, ctx: &Context, texturehandler: &mut TextureHandler, output: &mut GuiOutput) {
+    fn ui(&mut self, ctx: &Context, matrix: &mut Matrix) {
         egui::TopBottomPanel::top("menubar_container").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("Menu", |ui| {
@@ -183,7 +165,9 @@ impl Gui {
                         self.window_open = true;
                         ui.close_menu();
                     }
-                })
+                });
+                ui.checkbox(&mut matrix.brush.place_fire, "Ignite Materials");
+                ui.add(egui::widgets::Slider::new(&mut matrix.wait_time_after_frame, 0.0..=1000.0).text("Frame wait time"))
             });
         });
         egui::Window::new("Material Selection")
@@ -192,7 +176,7 @@ impl Gui {
             ui.horizontal_wrapped(|ui| {
                 if self.material_textures.len() != Material::iter().count() {
                     for mat in Material::iter() {
-                        let texture = &texturehandler.load_material_texture(mat);
+                        let texture = &matrix.texturehandler.load_material_texture(mat);
                         if let Some(texture) = texture {
                             let texture = &texture.1;
                             let matname = format!("{:?}", mat);
@@ -207,20 +191,10 @@ impl Gui {
                     let resp = ui.add(ImageButton::new(mattex, (32.0, 32.0)))
                         .on_hover_text(format!("{:?}", mat));
                     if resp.clicked() {
-                        output.material_selected = *mat;
+                        matrix.brush.material_index = Material::iter().position(|x| &x == mat).unwrap();
                     };
                 };
             });
-                // // ui.label("This example demonstrates using egui with pixels.");
-                // // ui.label("Made with 💖 in San Francisco!");
-
-                // // ui.separator();
-
-                // ui.horizontal(|ui| {
-                //     ui.spacing_mut().item_spacing.x /= 2.0;
-                //     ui.label("Learn more about egui at");
-                //     ui.hyperlink("https://docs.rs/egui");
-                // });
         });
     }
 }
