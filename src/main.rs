@@ -17,6 +17,14 @@ use winit_input_helper::WinitInputHelper;
 use falling_rust::{Matrix, Material, WIDTH, HEIGHT, SCALE, Framework};
 
 
+// TODO: Add rigidbodies (https://youtu.be/prXuyMCgbTc?t=358)
+// TODO: Add sprite system
+// TODO: Add fire
+// TODO: Maybe add (verlet) rope physics
+// TODO: Camera system
+// TODO: Physics (https://parry.rs/)
+
+
 
 fn main() -> Result<(), Error> {
     //env::set_var("RUST_LOG", "falling_rust=debug");
