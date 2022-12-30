@@ -15,7 +15,7 @@ impl Brush {
         Self {
             size: 35,
             material_index: 0,
-            place_fire: true,
+            place_fire: false,
         }
     }
 

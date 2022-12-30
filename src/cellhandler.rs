@@ -234,7 +234,7 @@ pub mod cell_handler {
         let hp = cell.hp;
         let cellpos = cell.pos;
         let mut spread = vec![];
-        let neighbours = matrix.get_neighbor_cells(cellpos);
+        let neighbours = matrix.get_neighbor_cells(cellpos, 2);
         for n in neighbours {
             if let Some(n_cell) = n {
                 let flammability = n_cell.material.get_flammability();

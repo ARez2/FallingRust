@@ -1,7 +1,5 @@
 use glam::{IVec2};
-use log::{warn};
 use pixels::wgpu::Color;
-use strum::IntoEnumIterator;
 
 use crate::{Cell, TextureHandler, Material, Chunk, cell_handler, CHUNK_SIZE, brush::Brush};
 const CHUNK_SIZE_I32: i32 = CHUNK_SIZE as i32;
@@ -31,6 +29,7 @@ pub struct Matrix {
 
     pub debug_draw: bool,
     pub update_left: bool,
+    pub update_down: bool,
     pub brush: Brush,
     pub wait_time_after_frame: f32,
 }
@@ -66,6 +65,7 @@ impl Matrix {
             debug_draw: false,
             brush: Brush::new(),
             update_left: true,
+            update_down: true,
             wait_time_after_frame: 0.0,
         }
     }
@@ -192,10 +192,24 @@ impl Matrix {
     }
 
     /// Returns a reference to all the neighbor cells around a position
-    pub fn get_neighbor_cells(&self, pos: IVec2) -> [Option<&Cell>; 4] {
-        let left = IVec2::new(1, 0);
-        let down = IVec2::new(0, 1);
-        [self.get_cell(pos - left), self.get_cell(pos + left), self.get_cell(pos - down), self.get_cell(pos + down)]
+    pub fn get_neighbor_cells(&self, pos: IVec2, radius: i32) -> Vec<Option<&Cell>> {
+        if radius == 1 {
+            let left = IVec2::new(1, 0);
+            let down = IVec2::new(0, 1);
+            return vec![self.get_cell(pos - left), self.get_cell(pos + left), self.get_cell(pos - down), self.get_cell(pos + down)];
+        };
+        let r = radius as f32 / 2.0;
+        let lower = r.floor() as i32;
+        let upper = r.ceil() as i32;
+
+        let mut neighbors = vec![];
+        for y in (pos.y-lower..pos.y+upper).rev() {
+            for x in pos.x-lower..pos.x+upper {
+                let cur_pos = IVec2::new(x, y);
+                neighbors.push(self.get_cell(cur_pos));
+            };
+        };
+        neighbors
     }
 
     /// Appends the cell to self.cells and updates self.data with its index
@@ -328,6 +342,7 @@ impl Matrix {
                 if self.brush.place_fire {
                     if let Some(c) = self.get_cell_mut(cur_pos) {
                         c.is_on_fire = true;
+                        self.set_chunk_active(cur_pos);
                     };
                 } else {
                     self.set_cell_material(cur_pos, material, false);
@@ -355,18 +370,34 @@ impl Matrix {
         };
 
         // Iterate all cells from the bottom up and either from left to right or the other way around
-        for y in (0..h).rev() {
-            if self.update_left {
-                for x in (0..w).rev() {
-                    self.step_all(x, y, w);
-                }
-            } else {
-                for x in 0..w {
-                    self.step_all(x, y, w);
-                }
+        if self.update_down {
+            for y in 0..h {
+                if self.update_left {
+                    for x in (0..w).rev() {
+                        self.step_all(x, y, w);
+                    }
+                } else {
+                    for x in 0..w {
+                        self.step_all(x, y, w);
+                    }
+                };
+                self.update_left = !self.update_left;
             };
-            self.update_left = !self.update_left;
+        } else {
+            for y in (0..h).rev() {
+                if self.update_left {
+                    for x in (0..w).rev() {
+                        self.step_all(x, y, w);
+                    }
+                } else {
+                    for x in 0..w {
+                        self.step_all(x, y, w);
+                    }
+                };
+                self.update_left = !self.update_left;
+            };
         };
+        self.update_down = !self.update_down;
     }
 
     /// Helper function to always execute the same logic regardless of wether iterating from the left or right side of the window
@@ -389,6 +420,7 @@ impl Matrix {
             let cell = self.get_cell_by_cellindex_mut(cell_idx).unwrap();
             if !cell.processed_this_frame {
                 let cell = self.get_cell_by_cellindex_mut(cell_idx).unwrap();
+                let hp = cell.hp;
                 cell.update();
                 cell.processed_this_frame = true;
                 cell_handler::handle_cell(self, cell_idx);
@@ -396,6 +428,9 @@ impl Matrix {
                 // Need to do this because cell could have died within the cellhandler
                 if let Some(cell) = cell {
                     cell.post_update();
+                    if cell.hp != hp {
+                        self.set_chunk_active(cur_pos);
+                    };
                 };
             };
         };

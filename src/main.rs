@@ -1,6 +1,8 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+use std::time::Duration;
+
 use glam::IVec2;
 use image::GenericImageView;
 use log::{error};
@@ -60,16 +62,21 @@ fn main() -> Result<(), Error> {
     };
 
     let mut life = Matrix::new_empty(WIDTH as usize, HEIGHT as usize);
-    // life.set_cell_material(IVec2::new(100, 80), Material::Sand, false);
-    // life.set_cell_material(IVec2::new(100, 30), Material::Dirt, false);
     let mut paused = false;
 
+    let mut last_update = std::time::SystemTime::now();
+    let mut frame_time = last_update;
     event_loop.run(move |event, _, control_flow| {
         // The one and only event that winit_input_helper doesn't have for us...
+        let current_time = std::time::SystemTime::now();
+        let frame_delta = current_time.duration_since(frame_time).unwrap();
+        let update_delta = current_time.duration_since(last_update).unwrap();
+        let should_update = life.wait_time_after_frame <= 0.0 || (update_delta >= Duration::from_millis(life.wait_time_after_frame as u64));
+        // if should_update {
+        //     println!("Update: {:?} -> {}", update_delta, should_update);
+        // };
+        //println!("Update delta: {:?}, wait time: {:?}, should update: {}, why: {}", update_delta, Duration::from_millis(life.wait_time_after_frame as u64), should_update, update_delta >= Duration::from_millis(life.wait_time_after_frame as u64));
         if let Event::RedrawRequested(_) = event {
-            if life.wait_time_after_frame > 0.0 {
-                std::thread::sleep(core::time::Duration::from_millis(life.wait_time_after_frame.round() as u64));
-            };
             life.draw(pixels.get_frame_mut());
 
             // Prepare egui
@@ -203,11 +210,14 @@ fn main() -> Result<(), Error> {
             if let Some(scale_factor) = input.scale_factor() {
                 framework.scale_factor(scale_factor);
             }
-            if !paused || input.key_pressed_os(VirtualKeyCode::Space) {
+            if (!paused || input.key_pressed_os(VirtualKeyCode::Space)) && should_update
+            {
                 life.update();
-            }
+                last_update = std::time::SystemTime::now();
+            };
             window.request_redraw();
         };
+        frame_time = std::time::SystemTime::now();
     });
 }
     
