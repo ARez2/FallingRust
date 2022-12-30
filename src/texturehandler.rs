@@ -49,6 +49,7 @@ impl TextureHandler {
         } else {
             let tex = self.load_material_texture(material);
             if let Some(tex) = tex {
+                output_color = self.get_color_from_tex(pos, &tex.0);
                 self.loaded_textures.insert(material, TextureInfo {
                     texture: tex.0,
                     being_used_by: 1,
