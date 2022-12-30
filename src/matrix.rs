@@ -1,7 +1,7 @@
 use glam::{IVec2};
 use pixels::wgpu::Color;
 
-use crate::{Cell, TextureHandler, Material, Chunk, cell_handler, CHUNK_SIZE, brush::Brush};
+use crate::{Cell, TextureHandler, Material, Chunk, cell_handler, CHUNK_SIZE, brush::Brush, NUM_CHUNKS};
 const CHUNK_SIZE_I32: i32 = CHUNK_SIZE as i32;
 
 
@@ -29,7 +29,6 @@ pub struct Matrix {
 
     pub debug_draw: bool,
     pub update_left: bool,
-    pub update_down: bool,
     pub brush: Brush,
     pub wait_time_after_frame: f32,
 }
@@ -65,7 +64,6 @@ impl Matrix {
             debug_draw: false,
             brush: Brush::new(),
             update_left: true,
-            update_down: true,
             wait_time_after_frame: 0.0,
         }
     }
@@ -370,38 +368,22 @@ impl Matrix {
         };
 
         // Iterate all cells from the bottom up and either from left to right or the other way around
-        if self.update_down {
-            for y in 0..h {
-                if self.update_left {
-                    for x in (0..w).rev() {
-                        self.step_all(x, y, w);
-                    }
-                } else {
-                    for x in 0..w {
-                        self.step_all(x, y, w);
-                    }
-                };
-                self.update_left = !self.update_left;
-            };
-        } else {
-            for y in (0..h).rev() {
-                if self.update_left {
-                    for x in (0..w).rev() {
-                        self.step_all(x, y, w);
-                    }
-                } else {
-                    for x in 0..w {
-                        self.step_all(x, y, w);
-                    }
-                };
-                self.update_left = !self.update_left;
+        for y in (0..h).rev() {
+            if self.update_left {
+                for x in (0..w).rev() {
+                    self.step_all(x, y);
+                }
+            } else {
+                for x in 0..w {
+                    self.step_all(x, y);
+                }
             };
         };
-        self.update_down = !self.update_down;
+        self.update_left = !self.update_left;
     }
 
     /// Helper function to always execute the same logic regardless of wether iterating from the left or right side of the window
-    fn step_all(&mut self, x: i32, y: i32, w: i32) {
+    fn step_all(&mut self, x: i32, y: i32) {
         let cur_pos = IVec2::new(x, y);
         
         let cur_chunk = self.get_chunk_for_pos(cur_pos);
@@ -412,8 +394,7 @@ impl Matrix {
         
         // If the chunk should process, update the cell
         if current_chunk.should_step {
-            let idx = (x + y * w) as usize;
-            let cell_idx = self.data[idx];
+            let cell_idx = self.get_data_at_pos(cur_pos);
             if cell_idx == 0 {
                 return;
             };
@@ -437,7 +418,6 @@ impl Matrix {
     }
 
     /// Renders all the cells into the pixel buffer
-    // TODO: Only redraw when cell changed
     pub fn draw(&self, screen: &mut [u8]) {
         //debug_assert_eq!(screen.len(), 4 * self.cells.len());
         screen.fill(0);
@@ -450,12 +430,13 @@ impl Matrix {
                     draw_color = Color::RED;
                 }
             };
+            
             let idx = self.cell_idx(c.pos) * 4;
+            let pixel_color = &mut screen[idx..idx+4];
             let color = [(draw_color.r * 255.0) as u8, (draw_color.g * 255.0) as u8, (draw_color.b * 255.0) as u8, (draw_color.a * 255.0) as u8];
-            screen[idx + 0] = color[0];
-            screen[idx + 1] = color[1];
-            screen[idx + 2] = color[2];
-            screen[idx + 3] = color[3];
+            if pixel_color != color {
+                pixel_color.copy_from_slice(&color);
+            };
         }
     }
 
