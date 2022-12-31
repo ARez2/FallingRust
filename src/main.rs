@@ -4,9 +4,7 @@
 use std::time::Duration;
 
 use glam::IVec2;
-use image::GenericImageView;
 use log::{error};
-use strum::IntoEnumIterator;
 use pixels::{Error, Pixels, SurfaceTexture};
 use winit::{
     dpi::{LogicalSize, LogicalPosition},
@@ -16,12 +14,11 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
-use falling_rust::{Matrix, Material, WIDTH, HEIGHT, SCALE, Framework};
+use falling_rust::{Matrix, Material, WIDTH, HEIGHT, SCALE, Framework, Assets};
 
 
 // TODO: Add rigidbodies (https://youtu.be/prXuyMCgbTc?t=358)
 // TODO: Add sprite system (https://github.com/parasyte/pixels/tree/main/examples/invaders/simple-invaders)
-// TODO: Add fire
 // TODO: Maybe add (verlet) rope physics
 // TODO: Camera system
 // TODO: Physics (https://parry.rs/)
@@ -60,8 +57,8 @@ fn main() -> Result<(), Error> {
         );
         (pixels, framework)
     };
-
-    let mut life = Matrix::new_empty(WIDTH as usize, HEIGHT as usize);
+    let mut assets: Assets = Assets::new();
+    let mut matrix = Matrix::new_empty(WIDTH as usize, HEIGHT as usize);
     let mut paused = false;
 
     let mut last_update = std::time::SystemTime::now();
@@ -71,16 +68,16 @@ fn main() -> Result<(), Error> {
         let current_time = std::time::SystemTime::now();
         let frame_delta = current_time.duration_since(frame_time).unwrap();
         let update_delta = current_time.duration_since(last_update).unwrap();
-        let should_update = life.wait_time_after_frame <= 0.0 || (update_delta >= Duration::from_millis(life.wait_time_after_frame as u64));
+        let should_update = matrix.wait_time_after_frame <= 0.0 || (update_delta >= Duration::from_millis(matrix.wait_time_after_frame as u64));
         // if should_update {
         //     println!("Update: {:?} -> {}", update_delta, should_update);
         // };
-        //println!("Update delta: {:?}, wait time: {:?}, should update: {}, why: {}", update_delta, Duration::from_millis(life.wait_time_after_frame as u64), should_update, update_delta >= Duration::from_millis(life.wait_time_after_frame as u64));
+        //println!("Update delta: {:?}, wait time: {:?}, should update: {}, why: {}", update_delta, Duration::from_millis(matrix.wait_time_after_frame as u64), should_update, update_delta >= Duration::from_millis(matrix.wait_time_after_frame as u64));
         if let Event::RedrawRequested(_) = event {
-            life.draw(pixels.get_frame_mut());
+            matrix.draw(pixels.get_frame_mut());
 
             // Prepare egui
-            framework.prepare(&window, &mut life);
+            framework.prepare(&window, &mut matrix, &mut assets);
 
             // Render everything together
             let render_result = pixels.render_with(|encoder, render_target, context| {
@@ -108,11 +105,11 @@ fn main() -> Result<(), Error> {
                 WindowEvent::MouseWheel { delta, ..} => match delta {
                     winit::event::MouseScrollDelta::LineDelta(x, y) => {
                         if y > &0.0 {
-                            life.brush.increase_material_index();
+                            matrix.brush.increase_material_index();
                         } else if y < &0.0 {
-                            life.brush.decrease_material_index();
+                            matrix.brush.decrease_material_index();
                         };
-                        println!("Material: {:?}", life.brush.get_material_from_index());
+                        println!("Material: {:?}", matrix.brush.get_material_from_index());
                     },
                     _ => (),
                 },
@@ -135,20 +132,20 @@ fn main() -> Result<(), Error> {
                 // Space is frame-step, so ensure we're paused
                 paused = true;
             }
-            if input.key_pressed(VirtualKeyCode::C) {
-                life = Matrix::new_empty(WIDTH as usize, HEIGHT as usize);
-            }
+            // if input.key_pressed(VirtualKeyCode::C) {
+            //     matrix = Matrix::new_empty(WIDTH as usize, HEIGHT as usize, &mut assets);
+            // }
             if input.key_pressed(VirtualKeyCode::F5) {
-                life.debug_draw = !life.debug_draw;
-                println!("Debug: {}", life.debug_draw);
+                matrix.debug_draw = !matrix.debug_draw;
+                println!("Debug: {}", matrix.debug_draw);
             }
             if input.key_pressed(VirtualKeyCode::Up) {
-                life.brush.size = life.brush.size.saturating_add(1);
-                println!("Brush size: {}", life.brush.size);
+                matrix.brush.size = matrix.brush.size.saturating_add(1);
+                println!("Brush size: {}", matrix.brush.size);
             }
             if input.key_pressed(VirtualKeyCode::Down) {
-                life.brush.size = life.brush.size.saturating_sub(1);
-                println!("Brush size: {}", life.brush.size);
+                matrix.brush.size = matrix.brush.size.saturating_sub(1);
+                println!("Brush size: {}", matrix.brush.size);
             }
             // Handle mouse. This is a bit involved since support some simple
             // line drawing (mostly because it makes nice looking patterns).
@@ -177,19 +174,20 @@ fn main() -> Result<(), Error> {
             if input.mouse_pressed(0) {
                 //println!("Mouse click at {:?}", mouse_cell);
                 let pos = IVec2::new(mouse_cell.0 as i32, mouse_cell.1 as i32);
-                life.draw_brush(pos, life.brush.get_material_from_index());
+                matrix.draw_brush(pos, matrix.brush.get_material_from_index(), &mut assets);
             } else {
                 let release = input.mouse_released(0);
                 let held = input.mouse_held(0);
                 // If they either released (finishing the drawing) or are still
                 // in the middle of drawing, keep going.
                 if release || held {
-                    life.set_line(
+                    matrix.set_line(
                         mouse_prev_cell.0,
                         mouse_prev_cell.1,
                         mouse_cell.0,
                         mouse_cell.1,
-                        life.brush.get_material_from_index(),
+                        matrix.brush.get_material_from_index(),
+                        &mut assets
                     );
                 }
                 // If they let go or are otherwise not clicking anymore, stop drawing.
@@ -212,13 +210,16 @@ fn main() -> Result<(), Error> {
             }
             if (!paused || input.key_pressed_os(VirtualKeyCode::Space)) && should_update
             {
-                life.update();
+                matrix.update(&mut assets);
                 last_update = std::time::SystemTime::now();
             };
             window.request_redraw();
         };
         frame_time = std::time::SystemTime::now();
     });
+
+    std::mem::drop(matrix);
+    
 }
     
     

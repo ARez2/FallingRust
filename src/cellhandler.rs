@@ -3,12 +3,12 @@
 pub mod cell_handler {
     use glam::{IVec2, Vec2};
 
-    use crate::{Matrix, MaterialType, rand_multiplier, Material, Cell};
+    use crate::{Matrix, MaterialType, rand_multiplier, Material, Cell, Assets};
 
     /// Function which gets called for all the cells.
     /// 
     /// Calls the respective methods depending on the cell material
-    pub fn handle_cell(matrix: &mut Matrix, cell_index: usize) {
+    pub fn handle_cell(matrix: &mut Matrix, cell_index: usize, assets: &mut Assets) {
         let cell = matrix.get_cell_by_cellindex_mut(cell_index);
         if cell.is_none() {
             return;
@@ -21,7 +21,7 @@ pub mod cell_handler {
         
         // This cell died; delete it
         if hp == 0 {
-            matrix.set_cell_material(cellpos, Material::Empty, false);
+            matrix.set_cell_material(cellpos, Material::Empty, false, assets);
             return;
         };
 

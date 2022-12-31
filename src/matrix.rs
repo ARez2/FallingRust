@@ -1,7 +1,7 @@
 use glam::{IVec2};
 use pixels::wgpu::Color;
 
-use crate::{Cell, TextureHandler, Material, Chunk, cell_handler, CHUNK_SIZE, brush::Brush, NUM_CHUNKS};
+use crate::{Cell, Assets, Material, Chunk, cell_handler, CHUNK_SIZE, brush::Brush, NUM_CHUNKS, COLOR_EMPTY};
 const CHUNK_SIZE_I32: i32 = CHUNK_SIZE as i32;
 
 
@@ -25,7 +25,6 @@ pub struct Matrix {
     cells: Vec<Cell>,
     data: Vec<usize>,
     pub chunks: Vec<Vec<Chunk>>,
-    pub texturehandler: TextureHandler,
 
     pub debug_draw: bool,
     pub update_left: bool,
@@ -59,7 +58,6 @@ impl Matrix {
             cells,
             data,
             chunks,
-            texturehandler: TextureHandler::new(),
 
             debug_draw: false,
             brush: Brush::new(),
@@ -211,14 +209,18 @@ impl Matrix {
     }
 
     /// Appends the cell to self.cells and updates self.data with its index
-    pub fn add_cell_to_cells(&mut self, mut cell: Cell) {
-        cell.color = self.texturehandler.get_color_for_material(cell.pos, cell.material);
+    pub fn add_cell_to_cells(&mut self, mut cell: Cell, assets: &mut Assets) {
+        assets.add_material_texture_instance(cell.material);
+        cell.color = assets.get_color_for_material(cell.pos, cell.material);
+        // if cell.color == COLOR_EMPTY {
+
+        // }
 
         let cell_at_pos = self.get_data_at_pos(cell.pos);
         // If there is already a cell at that position, replace that cell in self.cells with the new cell
         if cell_at_pos != 0 {
             let old = std::mem::replace(self.get_cell_from_cells_mut(cell_at_pos).unwrap(), cell);
-            self.texturehandler.remove_material(old.material);
+            assets.remove_material_texture_instance(old.material);
         } else {
             let c_idx = self.cell_idx(cell.pos);
             self.cells.push(cell);
@@ -227,7 +229,7 @@ impl Matrix {
     }
 
     /// Replaces the cell at cellpos with the last cell in self.cells (faster than shifting) and updates self.data
-    pub fn remove_cell_from_cells(&mut self, cellpos: IVec2) {
+    pub fn remove_cell_from_cells(&mut self, cellpos: IVec2, assets: &mut Assets) {
         if self.cells.is_empty() {
             return;
         };
@@ -238,7 +240,7 @@ impl Matrix {
         let cell_to_remove_idx = cell_index - 1;
         if cell_index != 0 {
             let cellmat = self.cells[cell_to_remove_idx].material;
-            self.texturehandler.remove_material(cellmat);
+            assets.remove_material_texture_instance(cellmat);
         };
         if cell_index == self.cells.len() {
             self.cells.remove(cell_to_remove_idx);
@@ -253,14 +255,14 @@ impl Matrix {
     }
 
     /// Places a cell at specified pos with the material given
-    pub fn set_cell_material(&mut self, mut pos: IVec2, material: Material, swap: bool) {
+    pub fn set_cell_material(&mut self, mut pos: IVec2, material: Material, swap: bool, assets: &mut Assets) {
         if material == Material::Empty {
-            self.remove_cell_from_cells(pos);
+            self.remove_cell_from_cells(pos, assets);
             return;
         };
         pos = self.clamp_pos(pos);
         let mut cell = Cell::new(pos, material);
-        self.add_cell_to_cells(cell);
+        self.add_cell_to_cells(cell, assets);
         self.set_cell_by_pos(pos, pos, swap);
     }
 
@@ -325,10 +327,10 @@ impl Matrix {
     }
 
     /// Places cells in the specified brush size
-    pub fn draw_brush(&mut self, pos: IVec2, material: Material) {
+    pub fn draw_brush(&mut self, pos: IVec2, material: Material, assets: &mut Assets) {
         let bs = self.brush.size as i32;
         if bs == 1 && !self.brush.place_fire {
-            self.set_cell_material(pos, material, false);
+            self.set_cell_material(pos, material, false, assets);
             return;
         };
         let bs_2 = bs as f32 / 2.0;
@@ -339,18 +341,20 @@ impl Matrix {
                 let cur_pos = IVec2::new(x, y);
                 if self.brush.place_fire {
                     if let Some(c) = self.get_cell_mut(cur_pos) {
-                        c.is_on_fire = true;
+                        if c.material.get_flammability() > 0.0 {
+                            c.is_on_fire = true;
+                        };
                         self.set_chunk_active(cur_pos);
                     };
                 } else {
-                    self.set_cell_material(cur_pos, material, false);
+                    self.set_cell_material(cur_pos, material, false, assets);
                 };
             };
         };
     }
 
     /// New frame. Update the matrix (includes cells and chunks)
-    pub fn update(&mut self) {
+    pub fn update(&mut self, assets: &mut Assets) {
         // Tells all chunks that a new frame has begun
         for chunkrow in self.chunks.iter_mut() {
             for chunk in chunkrow.iter_mut() {
@@ -371,11 +375,11 @@ impl Matrix {
         for y in (0..h).rev() {
             if self.update_left {
                 for x in (0..w).rev() {
-                    self.step_all(x, y);
+                    self.step_all(x, y, assets);
                 }
             } else {
                 for x in 0..w {
-                    self.step_all(x, y);
+                    self.step_all(x, y, assets);
                 }
             };
         };
@@ -383,7 +387,7 @@ impl Matrix {
     }
 
     /// Helper function to always execute the same logic regardless of wether iterating from the left or right side of the window
-    fn step_all(&mut self, x: i32, y: i32) {
+    fn step_all(&mut self, x: i32, y: i32, assets: &mut Assets) {
         let cur_pos = IVec2::new(x, y);
         
         let cur_chunk = self.get_chunk_for_pos(cur_pos);
@@ -404,7 +408,7 @@ impl Matrix {
                 let hp = cell.hp;
                 cell.update();
                 cell.processed_this_frame = true;
-                cell_handler::handle_cell(self, cell_idx);
+                cell_handler::handle_cell(self, cell_idx, assets);
                 let cell = self.get_cell_by_cellindex_mut(cell_idx);
                 // Need to do this because cell could have died within the cellhandler
                 if let Some(cell) = cell {
@@ -441,13 +445,13 @@ impl Matrix {
     }
 
     /// Draws a line with the specified material
-    pub fn set_line(&mut self, x0: isize, y0: isize, x1: isize, y1: isize, material: Material) {
+    pub fn set_line(&mut self, x0: isize, y0: isize, x1: isize, y1: isize, material: Material, assets: &mut Assets) {
         let x0 = x0.max(0).min(self.width as isize);
         let y0 = y0.max(0).min(self.height as isize);
         for (x, y) in line_drawing::Bresenham::new((x0, y0), (x1, y1)) {
             let pos = IVec2::new(x as i32, y as i32);
             if self.is_in_bounds(pos) {
-                self.draw_brush(pos, material);
+                self.draw_brush(pos, material, assets);
             } else {
                 break;
             }

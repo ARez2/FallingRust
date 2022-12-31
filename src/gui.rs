@@ -2,8 +2,7 @@ use egui::{ClippedPrimitive, Context, TexturesDelta, TextureHandle, ColorImage, 
 use egui_wgpu::renderer::{Renderer, ScreenDescriptor};
 use strum::IntoEnumIterator;
 
-use crate::{Material, Matrix};
-use crate::texturehandler::TextureHandler;
+use crate::{Material, Matrix, Assets};
 
 use pixels::{wgpu, PixelsContext};
 use winit::event_loop::EventLoopWindowTarget;
@@ -78,13 +77,13 @@ impl Framework {
     }
 
     /// Prepare egui.
-    pub fn prepare(&mut self, window: &Window, matrix: &mut Matrix) {
+    pub fn prepare(&mut self, window: &Window, matrix: &mut Matrix, assets: &mut Assets) {
         // Run the egui frame and create all paint jobs to prepare for rendering.
         let raw_input = self.egui_state.take_egui_input(window);
 
         let output = self.egui_ctx.run(raw_input, |egui_ctx| {
             // Draw the demo application.
-            self.gui.ui(egui_ctx, matrix);
+            self.gui.ui(egui_ctx, matrix, assets);
         });
 
         self.textures.append(output.textures_delta);
@@ -157,7 +156,7 @@ impl Gui {
         }
     }
 
-    fn ui(&mut self, ctx: &Context, matrix: &mut Matrix) {
+    fn ui(&mut self, ctx: &Context, matrix: &mut Matrix, assets: &mut Assets) {
         egui::TopBottomPanel::top("menubar_container").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("Menu", |ui| {
@@ -176,11 +175,12 @@ impl Gui {
             ui.horizontal_wrapped(|ui| {
                 if self.material_textures.len() != Material::iter().count() {
                     for mat in Material::iter() {
-                        let texture = &matrix.texturehandler.load_material_texture(mat);
+                        assets.add_material_texture_instance(mat);
+                        let texture = assets.get_texture_for_material(mat);
                         if let Some(texture) = texture {
-                            let texture = &texture.1;
+                            let (w, h) = (texture.texture.width() as usize, texture.texture.height() as usize);
                             let matname = format!("{:?}", mat);
-                            let col_image = ColorImage::from_rgb([texture.width() as usize, texture.height() as usize], texture);
+                            let col_image = ColorImage::from_rgb([w, h], &texture.pixels);
                             let tex = ctx.load_texture(matname, col_image, Default::default());
                             self.material_textures.push((tex, mat));
                         };
