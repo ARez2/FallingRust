@@ -229,7 +229,6 @@ pub mod cell_handler {
     }
 
     /// Handles fire logic
-    // TODO: Make water stop fire
     fn fire_step(matrix: &mut Matrix, cell_index: usize, assets: &mut Assets) -> bool {
         let cell = matrix.get_cell_by_cellindex_mut(cell_index).unwrap();
         cell.hp = cell.hp.saturating_sub(1);
@@ -255,6 +254,7 @@ pub mod cell_handler {
                     if let Some(n_cell_neigh) = n_cell_neigh {
                         if n_cell_neigh.material.extinguishes_fire().0 {
                             has_protection = true;
+                            break;
                         };
                     };
                 };
