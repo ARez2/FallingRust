@@ -1,5 +1,5 @@
 use glam::{IVec2};
-use pixels::wgpu::Color;
+use crate::Color;
 
 use crate::{Cell, Assets, Material, Chunk, cell_handler, CHUNK_SIZE, brush::Brush, NUM_CHUNKS, COLOR_EMPTY};
 const CHUNK_SIZE_I32: i32 = CHUNK_SIZE as i32;
@@ -199,8 +199,8 @@ impl Matrix {
         let upper = r.ceil() as i32;
 
         let mut neighbors = vec![];
-        for y in (pos.y-lower..=pos.y+upper).rev() {
-            for x in pos.x-lower..=pos.x+upper {
+        for y in (pos.y-radius..=pos.y+radius).rev() {
+            for x in pos.x-radius..=pos.x+radius {
                 let cur_pos = IVec2::new(x, y);
                 neighbors.push(self.get_cell(cur_pos));
             };
@@ -212,7 +212,7 @@ impl Matrix {
     pub fn add_cell_to_cells(&mut self, mut cell: Cell, assets: &mut Assets) {
         //let tex = &assets.add_material_texture_instance(cell.material).unwrap().texture.clone();
         //cell.color = assets.get_color_from_texture_wrapped(cell.pos, &tex);
-        cell.color = assets.get_color_for_material(cell.pos, cell.material);
+        cell.set_color(assets.get_color_for_material(cell.pos, cell.material));
 
         let cell_at_pos = self.get_data_at_pos(cell.pos);
         // If there is already a cell at that position, replace that cell in self.cells with the new cell
@@ -411,7 +411,7 @@ impl Matrix {
                 // Need to do this because cell could have died within the cellhandler
                 if let Some(cell) = cell {
                     cell.post_update();
-                    if cell.hp != hp || cell.was_on_fire_last_frame {
+                    if cell.hp != hp || cell.is_on_fire || cell.was_on_fire_last_frame {
                         self.set_chunk_active(cur_pos);
                     };
                 };

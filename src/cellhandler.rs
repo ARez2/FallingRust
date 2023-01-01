@@ -27,7 +27,7 @@ pub mod cell_handler {
         };
 
         if was_on_fire && on_fire {
-            fire_step(matrix, cell_index);
+            fire_step(matrix, cell_index, assets);
         };
 
         let did_move = match cellmat.get_type() {
@@ -230,23 +230,50 @@ pub mod cell_handler {
 
     /// Handles fire logic
     // TODO: Make water stop fire
-    fn fire_step(matrix: &mut Matrix, cell_index: usize) -> bool {
+    fn fire_step(matrix: &mut Matrix, cell_index: usize, assets: &mut Assets) -> bool {
         let cell = matrix.get_cell_by_cellindex_mut(cell_index).unwrap();
         cell.hp = cell.hp.saturating_sub(1);
         let cellpos = cell.pos;
         let mut spread = vec![];
         let neighbours = matrix.get_neighbor_cells(cellpos, 2);
+        let mut extinguisher = (None, 1.0);
         for n in neighbours {
             if let Some(n_cell) = n {
+                let ext = n_cell.material.extinguishes_fire();
+                if ext.0 {
+                    extinguisher = (Some(n_cell.pos), ext.1);
+                    break;
+                };
+
                 let flammability = n_cell.material.get_flammability();
                 if n_cell.is_on_fire {
                     continue;
                 };
-                if rand::random::<f32>() < flammability {
+                let mut has_protection = false;
+                let n_cell_neighbors = matrix.get_neighbor_cells(n_cell.pos, 7);
+                for n_cell_neigh in n_cell_neighbors {
+                    if let Some(n_cell_neigh) = n_cell_neigh {
+                        if n_cell_neigh.material.extinguishes_fire().0 {
+                            has_protection = true;
+                        };
+                    };
+                };
+                if !has_protection && rand::random::<f32>() < flammability {
                     spread.push(n_cell.pos);
                 };
             };
         };
+        if extinguisher.0.is_some() {
+            let ext = matrix.get_cell_mut(extinguisher.0.unwrap());
+            if let Some(ext) = ext {
+                ext.hp = (ext.hp as f32 * extinguisher.1).round() as u64;
+            };
+            let cell = matrix.get_cell_by_cellindex_mut(cell_index).unwrap();
+            cell.is_on_fire = false;
+            matrix.set_cell_material(cellpos + IVec2::new(0, -1), Material::Smoke, false, assets);
+            return false;
+        };
+
         // If this fire cell did find another cell to spread to
         for spread_cell_pos in spread {
             if let Some(spread_cell) = matrix.get_cell_mut(spread_cell_pos) {

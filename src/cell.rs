@@ -1,6 +1,6 @@
 use std::{fmt::Display, rc::Rc};
 
-use pixels::wgpu::Color;
+use crate::{Color, darken_color};
 use glam::{IVec2, Vec2};
 
 use crate::{Material, MaterialType, rand_multiplier};
@@ -13,6 +13,7 @@ pub struct Cell {
     prev_pos: IVec2,
     pub velocity: Vec2,
     pub hp: u64,
+    pub base_color: Color,
     pub color: Color,
     pub material: Material,
     pub processed_this_frame: bool,
@@ -30,6 +31,7 @@ impl Cell {
             velocity: Vec2::ZERO,
             material,
             hp: material.get_hp(),
+            base_color: material.get_color(),
             color: material.get_color(),
             processed_this_frame: false,
             is_free_falling: true,
@@ -45,9 +47,9 @@ impl Cell {
         if self.is_on_fire {
             self.hp = self.hp.saturating_sub(1);
             self.color = Color {r: 1.0, g: 0.25 + 0.25 * rand_multiplier() as f64, b: 0.0, a: 1.0}
+        } else {
+            self.color = darken_color(self.base_color, self.hp as f64 / self.material.get_hp() as f64);
         };
-        //self.velocity += Vec2::new(0.0, 0.5);
-        
     }
     
     /// Updates the cells properties after the cells has been handled by the cellhandler
@@ -73,6 +75,11 @@ impl Cell {
                 //self.color = Color::GREEN;
             };
         };
+    }
+
+    pub fn set_color(&mut self, color: Color) {
+        self.base_color = color;
+        self.color = color;
     }
 }
 

@@ -1,5 +1,5 @@
 use std::{collections::HashMap, path::PathBuf};
-use pixels::wgpu::Color;
+use crate::Color;
 use glam::IVec2;
 use image::{Rgb32FImage, ImageBuffer};
 use strum::IntoEnumIterator;

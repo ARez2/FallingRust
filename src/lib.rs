@@ -7,6 +7,9 @@ pub use cellhandler::cell_handler;
 pub mod material;
 pub use material::{Material, MaterialType};
 
+pub mod reaction;
+
+
 pub mod assets;
 pub use assets::Assets;
 
@@ -38,4 +41,14 @@ pub fn rand_multiplier() -> i32 {
         true => 1,
         false => -1,
     }
+}
+
+pub fn darken_color(mut color: Color, amount: f64) -> Color {
+    color.r *= amount;
+    color.g *= amount;
+    color.b *= amount;
+    color.r = color.r.max(0.0).min(1.0);
+    color.g = color.g.max(0.0).min(1.0);
+    color.b = color.b.max(0.0).min(1.0);
+    color
 }

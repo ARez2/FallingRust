@@ -1,4 +1,4 @@
-use pixels::wgpu::Color;
+use crate::Color;
 use strum_macros::EnumIter;
 
 
@@ -99,6 +99,14 @@ impl Material {
             Material::Dirt => 0.2,
             Material::Wood => 0.005,
             _ => 0.0,
+        }
+    }
+
+    pub fn extinguishes_fire(&self) -> (bool, f32) {
+        match self {
+            Material::Water => (true, 0.5),
+            Material::Sand => (true, 1.0),
+            _ => (false, 1.0),
         }
     }
 }
