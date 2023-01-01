@@ -166,7 +166,8 @@ impl Gui {
                     }
                 });
                 ui.checkbox(&mut matrix.brush.place_fire, "Ignite Materials");
-                ui.add(egui::widgets::Slider::new(&mut matrix.wait_time_after_frame, 0.0..=1000.0).text("Frame wait time"))
+                ui.add(egui::widgets::Slider::new(&mut matrix.wait_time_after_frame, 0.0..=1000.0).text("Frame wait time"));
+                ui.add(egui::widgets::Slider::new(&mut matrix.brush.size, 1..=100).text("Brush Size"));
             });
         });
         egui::Window::new("Material Selection")
