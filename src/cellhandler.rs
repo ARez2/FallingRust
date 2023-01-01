@@ -229,8 +229,6 @@ pub mod cell_handler {
     }
 
     /// Handles fire logic
-    // TODO: Fix first chunk getting ignited all at once
-    // TODO: Fix some pixels being left after fire
     // TODO: Make water stop fire
     fn fire_step(matrix: &mut Matrix, cell_index: usize) -> bool {
         let cell = matrix.get_cell_by_cellindex_mut(cell_index).unwrap();

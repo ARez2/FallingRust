@@ -199,8 +199,8 @@ impl Matrix {
         let upper = r.ceil() as i32;
 
         let mut neighbors = vec![];
-        for y in (pos.y-lower..pos.y+upper).rev() {
-            for x in pos.x-lower..pos.x+upper {
+        for y in (pos.y-lower..=pos.y+upper).rev() {
+            for x in pos.x-lower..=pos.x+upper {
                 let cur_pos = IVec2::new(x, y);
                 neighbors.push(self.get_cell(cur_pos));
             };
@@ -402,7 +402,7 @@ impl Matrix {
             };
             let cell = self.get_cell_by_cellindex_mut(cell_idx).unwrap();
             if !cell.processed_this_frame {
-                let cell = self.get_cell_by_cellindex_mut(cell_idx).unwrap();
+                //let cell = self.get_cell_by_cellindex_mut(cell_idx).unwrap();
                 let hp = cell.hp;
                 cell.update();
                 cell.processed_this_frame = true;
@@ -411,7 +411,7 @@ impl Matrix {
                 // Need to do this because cell could have died within the cellhandler
                 if let Some(cell) = cell {
                     cell.post_update();
-                    if cell.hp != hp {
+                    if cell.hp != hp || cell.was_on_fire_last_frame {
                         self.set_chunk_active(cur_pos);
                     };
                 };
