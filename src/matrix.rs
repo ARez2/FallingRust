@@ -195,8 +195,6 @@ impl Matrix {
             return vec![self.get_cell(pos - left), self.get_cell(pos + left), self.get_cell(pos - down), self.get_cell(pos + down)];
         };
         let r = radius as f32 / 2.0;
-        let lower = r.floor() as i32;
-        let upper = r.ceil() as i32;
 
         let mut neighbors = vec![];
         for y in (pos.y-radius..=pos.y+radius).rev() {
@@ -210,15 +208,12 @@ impl Matrix {
 
     /// Appends the cell to self.cells and updates self.data with its index
     pub fn add_cell_to_cells(&mut self, mut cell: Cell, assets: &mut Assets) {
-        //let tex = &assets.add_material_texture_instance(cell.material).unwrap().texture.clone();
-        //cell.color = assets.get_color_from_texture_wrapped(cell.pos, &tex);
         cell.set_color(assets.get_color_for_material(cell.pos, cell.material));
 
         let cell_at_pos = self.get_data_at_pos(cell.pos);
         // If there is already a cell at that position, replace that cell in self.cells with the new cell
         if cell_at_pos != 0 {
             let old = std::mem::replace(self.get_cell_from_cells_mut(cell_at_pos).unwrap(), cell);
-            //assets.remove_material_texture_instance(old.material);
         } else {
             let c_idx = self.cell_idx(cell.pos);
             self.cells.push(cell);
@@ -236,10 +231,6 @@ impl Matrix {
         self.data[data_idx] = 0;
         self.set_chunk_cluster_active(cellpos);
         let cell_to_remove_idx = cell_index - 1;
-        if cell_index != 0 {
-            let cellmat = self.cells[cell_to_remove_idx].material;
-            //assets.remove_material_texture_instance(cellmat);
-        };
         if cell_index == self.cells.len() {
             self.cells.remove(cell_to_remove_idx);
             return;
