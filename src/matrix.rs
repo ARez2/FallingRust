@@ -1,5 +1,6 @@
 use glam::{IVec2};
-use crate::Color;
+use rand::rngs::ThreadRng;
+use crate::{Color, HEIGHT, WIDTH};
 
 use crate::{Cell, Assets, Material, Chunk, cell_handler, CHUNK_SIZE, brush::Brush, NUM_CHUNKS, COLOR_EMPTY};
 const CHUNK_SIZE_I32: i32 = CHUNK_SIZE as i32;
@@ -30,6 +31,7 @@ pub struct Matrix {
     pub update_left: bool,
     pub brush: Brush,
     pub wait_time_after_frame: f32,
+    pub rng: ThreadRng,
 }
 
 impl Matrix {
@@ -63,12 +65,13 @@ impl Matrix {
             brush: Brush::new(),
             update_left: true,
             wait_time_after_frame: 0.0,
+            rng: rand::thread_rng(),
         }
     }
 
     /// Checks wether the chunk position is valid
     fn chunk_in_bounds(&self, chunk_pos: IVec2) -> bool {
-        (chunk_pos.x >= 0 && chunk_pos.x < self.chunks.len() as i32) && (chunk_pos.y >= 0 && chunk_pos.y < self.chunks[0].len() as i32)
+        (chunk_pos.x >= 0 && chunk_pos.x < self.width as i32 / CHUNK_SIZE_I32) && (chunk_pos.y >= 0 && chunk_pos.y < self.height as i32 / CHUNK_SIZE_I32)
     }
     
     /// Returns a reference to the chunk at this cell position
@@ -403,7 +406,7 @@ impl Matrix {
                 if let Some(cell) = cell {
                     cell.post_update();
                     if cell.hp != hp || cell.is_on_fire || cell.was_on_fire_last_frame {
-                        self.set_chunk_active(cur_pos);
+                        self.set_chunk_cluster_active(cur_pos);
                     };
                 };
             };
@@ -413,7 +416,12 @@ impl Matrix {
     /// Renders all the cells into the pixel buffer
     pub fn draw(&self, screen: &mut [u8]) {
         //debug_assert_eq!(screen.len(), 4 * self.cells.len());
-        screen.fill(0);
+        //screen.fill(0);
+
+        // Faster solution for filling the array
+        unsafe {
+            std::ptr::write_bytes(screen.as_mut_ptr(), 0, screen.len());
+        };
         for c in self.cells.iter() {
             let mut draw_color = c.color;
             
