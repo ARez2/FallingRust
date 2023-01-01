@@ -14,7 +14,7 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
-use falling_rust::{Matrix, Material, WIDTH, HEIGHT, SCALE, Framework, Assets};
+use falling_rust::{Matrix, Material, WIDTH, HEIGHT, SCALE, Framework, Assets, UIInfo};
 
 
 // TODO: Add rigidbodies (https://youtu.be/prXuyMCgbTc?t=358)
@@ -57,27 +57,27 @@ fn main() -> Result<(), Error> {
         );
         (pixels, framework)
     };
+    let mut ui_info = UIInfo::new();
     let mut assets: Assets = Assets::new();
     let mut matrix = Matrix::new_empty(WIDTH as usize, HEIGHT as usize);
     let mut paused = false;
 
     let mut last_update = std::time::SystemTime::now();
     let mut frame_time = last_update;
+    let start = std::time::SystemTime::now();
+    let mut num_frames = 0;
     event_loop.run(move |event, _, control_flow| {
         // The one and only event that winit_input_helper doesn't have for us...
         let current_time = std::time::SystemTime::now();
         let frame_delta = current_time.duration_since(frame_time).unwrap();
         let update_delta = current_time.duration_since(last_update).unwrap();
         let should_update = matrix.wait_time_after_frame <= 0.0 || (update_delta >= Duration::from_millis(matrix.wait_time_after_frame as u64));
-        // if should_update {
-        //     println!("Update: {:?} -> {}", update_delta, should_update);
-        // };
-        //println!("Update delta: {:?}, wait time: {:?}, should update: {}, why: {}", update_delta, Duration::from_millis(matrix.wait_time_after_frame as u64), should_update, update_delta >= Duration::from_millis(matrix.wait_time_after_frame as u64));
+        ui_info.num_frames = num_frames as f32 / current_time.duration_since(start).unwrap().as_secs_f32();
         if let Event::RedrawRequested(_) = event {
             matrix.draw(pixels.get_frame_mut());
 
             // Prepare egui
-            framework.prepare(&window, &mut matrix, &mut assets);
+            framework.prepare(&window, &mut matrix, &mut assets, &mut ui_info);
 
             // Render everything together
             let render_result = pixels.render_with(|encoder, render_target, context| {
@@ -94,8 +94,8 @@ fn main() -> Result<(), Error> {
             if let Err(err) = render_result {
                 error!("pixels.render() failed: {err}");
                 *control_flow = ControlFlow::Exit;
-            }
-        }
+            };
+        };
 
         if let Event::WindowEvent {event, .. } = &event {
             if framework.handle_event(event) {
@@ -212,6 +212,7 @@ fn main() -> Result<(), Error> {
             {
                 matrix.update(&mut assets);
                 last_update = std::time::SystemTime::now();
+                num_frames += 1;
             };
             window.request_redraw();
         };

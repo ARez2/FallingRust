@@ -35,6 +35,18 @@ pub const SCALE: f64 = 2.0;
 pub const COLOR_EMPTY: Color = Color { r: 1.0, g: 0.0, b: 0.8, a: 1.0 };
 
 
+pub struct UIInfo {
+    pub num_frames: f32,
+}
+impl UIInfo {
+    pub fn new() -> Self {
+        UIInfo {
+            num_frames: 30.0,
+        }
+    }
+}
+
+
 /// Returns 1 or -1 at random
 pub fn rand_multiplier() -> i32 {
     match rand::random::<bool>() {

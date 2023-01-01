@@ -1,8 +1,9 @@
+use egui::Align2;
 use egui::{ClippedPrimitive, Context, TexturesDelta, TextureHandle, ColorImage, widgets::ImageButton};
 use egui_wgpu::renderer::{Renderer, ScreenDescriptor};
 use strum::IntoEnumIterator;
 
-use crate::{Material, Matrix, Assets};
+use crate::{Material, Matrix, Assets, UIInfo};
 
 use pixels::{wgpu, PixelsContext};
 use winit::event_loop::EventLoopWindowTarget;
@@ -77,13 +78,13 @@ impl Framework {
     }
 
     /// Prepare egui.
-    pub fn prepare(&mut self, window: &Window, matrix: &mut Matrix, assets: &mut Assets) {
+    pub fn prepare(&mut self, window: &Window, matrix: &mut Matrix, assets: &mut Assets, ui_info: &mut UIInfo) {
         // Run the egui frame and create all paint jobs to prepare for rendering.
         let raw_input = self.egui_state.take_egui_input(window);
 
         let output = self.egui_ctx.run(raw_input, |egui_ctx| {
             // Draw the demo application.
-            self.gui.ui(egui_ctx, matrix, assets);
+            self.gui.ui(egui_ctx, matrix, assets, ui_info);
         });
 
         self.textures.append(output.textures_delta);
@@ -145,6 +146,7 @@ impl Framework {
 struct Gui {
     /// Only show the egui window when true.
     window_open: bool,
+    info_open: bool,
     material_textures: Vec<(TextureHandle, Material)>,
 }
 impl Gui {
@@ -152,26 +154,39 @@ impl Gui {
         let material_textures = vec![];
         Self {
             window_open: true,
+            info_open: false,
             material_textures,
         }
     }
 
-    fn ui(&mut self, ctx: &Context, matrix: &mut Matrix, assets: &mut Assets) {
+    fn ui(&mut self, ctx: &Context, matrix: &mut Matrix, assets: &mut Assets, ui_info: &mut UIInfo) {
         egui::TopBottomPanel::top("menubar_container").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
+                ui.separator();
                 ui.menu_button("Menu", |ui| {
                     if ui.button("Material Selection").clicked() {
                         self.window_open = true;
                         ui.close_menu();
-                    }
+                    };
+                    if ui.button("Show Info").clicked() {
+                        self.info_open = true;
+                        ui.close_menu();
+                    };
                 });
+                ui.separator();
                 ui.checkbox(&mut matrix.brush.place_fire, "Ignite Materials");
-                ui.add(egui::widgets::Slider::new(&mut matrix.wait_time_after_frame, 0.0..=1000.0).text("Frame wait time"));
-                ui.add(egui::widgets::Slider::new(&mut matrix.brush.size, 1..=100).text("Brush Size"));
+                ui.separator();
+                ui.label("Frame wait time: ");
+                ui.add(egui::widgets::Slider::new(&mut matrix.wait_time_after_frame, 0.0..=1000.0));
+                ui.separator();
+                ui.label("Brush Size: ");
+                ui.add(egui::widgets::Slider::new(&mut matrix.brush.size, 1..=100));
             });
         });
+        
         egui::Window::new("Material Selection")
         .open(&mut self.window_open)
+        .resizable(true)
         .show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
                 if self.material_textures.len() != Material::iter().count() {
@@ -193,6 +208,13 @@ impl Gui {
                     };
                 };
             });
+        });
+
+        egui::Window::new("Info")
+        .open(&mut self.info_open)
+        .anchor(Align2::RIGHT_TOP, (-5.0, 5.0))
+        .show(ctx, |ui| {
+            ui.label(format!("FPS: {}", ui_info.num_frames.round().to_string()));
         });
     }
 }
