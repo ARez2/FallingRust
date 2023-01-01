@@ -132,9 +132,9 @@ fn main() -> Result<(), Error> {
                 // Space is frame-step, so ensure we're paused
                 paused = true;
             }
-            // if input.key_pressed(VirtualKeyCode::C) {
-            //     matrix = Matrix::new_empty(WIDTH as usize, HEIGHT as usize, &mut assets);
-            // }
+            if input.key_pressed(VirtualKeyCode::C) {
+                matrix = Matrix::new_empty(WIDTH as usize, HEIGHT as usize);
+            }
             if input.key_pressed(VirtualKeyCode::F5) {
                 matrix.debug_draw = !matrix.debug_draw;
                 println!("Debug: {}", matrix.debug_draw);
@@ -217,9 +217,6 @@ fn main() -> Result<(), Error> {
         };
         frame_time = std::time::SystemTime::now();
     });
-
-    std::mem::drop(matrix);
-    
 }
     
     

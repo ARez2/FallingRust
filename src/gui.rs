@@ -174,16 +174,13 @@ impl Gui {
         .show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
                 if self.material_textures.len() != Material::iter().count() {
-                    for mat in Material::iter() {
-                        assets.add_material_texture_instance(mat);
-                        let texture = assets.get_texture_for_material(mat);
-                        if let Some(texture) = texture {
-                            let (w, h) = (texture.texture.width() as usize, texture.texture.height() as usize);
-                            let matname = format!("{:?}", mat);
-                            let col_image = ColorImage::from_rgb([w, h], &texture.pixels);
-                            let tex = ctx.load_texture(matname, col_image, Default::default());
-                            self.material_textures.push((tex, mat));
-                        };
+                    for mat in assets.loaded_material_textures.iter() {
+                        let texture = mat.1;
+                        let (w, h) = (texture.width as usize, texture.height as usize);
+                        let matname = format!("{:?}", mat);
+                        let col_image = ColorImage::from_rgba_unmultiplied([w, h], &texture.pixels);
+                        let tex = ctx.load_texture(matname, col_image, Default::default());
+                        self.material_textures.push((tex, *mat.0));
                     };
                 };
 

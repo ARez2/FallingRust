@@ -22,6 +22,7 @@ pub enum Material {
     Water,
     Rock,
     Smoke,
+    Wood,
 }
 
 impl Material {
@@ -33,6 +34,7 @@ impl Material {
             Material::Water => MaterialType::Liquid,
             Material::Rock => MaterialType::Solid,
             Material::Smoke => MaterialType::Gas,
+            Material::Wood => MaterialType::Solid,
             _ => MaterialType::Solid,
         }
     }
@@ -45,6 +47,7 @@ impl Material {
             Material::Water => Color { r: 0.0, g: 0.0, b: 1.0, a: 1.0 },
             Material::Rock => Color { r: 0.3, g: 0.3, b: 0.3, a: 1.0 },
             Material::Smoke => Color { r: 0.5, g: 0.5, b: 0.5, a: 1.0 },
+            Material::Wood => Color {r: 0.5, g: 0.3, b: 0.1, a: 1.0},
         }
     }
 
@@ -56,6 +59,7 @@ impl Material {
             Material::Water => 20,
             Material::Rock => 150,
             Material::Smoke => 60,
+            Material::Wood => 600,
         }
     }
 
@@ -66,7 +70,8 @@ impl Material {
             Material::Dirt => 500,
             Material::Water => 100,
             Material::Rock => 1000,
-            Material::Smoke => 50,
+            Material::Smoke => 60,
+            Material::Wood => 600,
         }
     }
 
@@ -90,8 +95,9 @@ impl Material {
 
     pub fn get_flammability(&self) -> f32 {
         match self {
-            Material::Smoke => 1.0,
-            Material::Dirt => 0.3,
+            Material::Smoke => 0.5,
+            Material::Dirt => 0.2,
+            Material::Wood => 0.005,
             _ => 0.0,
         }
     }

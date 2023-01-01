@@ -17,6 +17,7 @@ pub mod cell_handler {
         let cellpos = cell.pos;
         let hp = cell.hp;
         let on_fire = cell.is_on_fire;
+        let was_on_fire = cell.was_on_fire_last_frame;
         let cellmat = cell.material;
         
         // This cell died; delete it
@@ -25,7 +26,7 @@ pub mod cell_handler {
             return;
         };
 
-        if on_fire {
+        if was_on_fire && on_fire {
             fire_step(matrix, cell_index);
         };
 
@@ -228,10 +229,12 @@ pub mod cell_handler {
     }
 
     /// Handles fire logic
+    // TODO: Fix first chunk getting ignited all at once
+    // TODO: Fix some pixels being left after fire
+    // TODO: Make water stop fire
     fn fire_step(matrix: &mut Matrix, cell_index: usize) -> bool {
         let cell = matrix.get_cell_by_cellindex_mut(cell_index).unwrap();
         cell.hp = cell.hp.saturating_sub(1);
-        let hp = cell.hp;
         let cellpos = cell.pos;
         let mut spread = vec![];
         let neighbours = matrix.get_neighbor_cells(cellpos, 2);
