@@ -1,5 +1,5 @@
 use glam::{IVec2};
-use rand::rngs::ThreadRng;
+use rand::{rngs::ThreadRng, seq::SliceRandom};
 use crate::{Color, WIDTH};
 use rayon::prelude::*;
 
@@ -171,7 +171,7 @@ impl Matrix {
         };
 
         let mut neighbors = vec![];
-        for y in (pos.y-radius..=pos.y+radius).rev() {
+        for y in pos.y-radius..=pos.y+radius {
             for x in pos.x-radius..=pos.x+radius {
                 let cur_pos = IVec2::new(x, y);
                 neighbors.push(self.get_cell(cur_pos));
@@ -330,6 +330,7 @@ impl Matrix {
         // Tell every cells that a new frame has begun
         self.cells.par_iter_mut().for_each(|cell| {
             cell.processed_this_frame = false;
+            cell.post_update();
         });
 
         // Iterate all cells from the bottom up and either from left to right or the other way around
@@ -368,15 +369,10 @@ impl Matrix {
                 let hp = cell.hp;
                 cell.update();
                 cell.processed_this_frame = true;
-                cell_handler::handle_cell(self, cell_idx, assets);
-                let cell = self.get_cell_by_cellindex_mut(cell_idx);
-                // Need to do this because cell could have died within the cellhandler
-                if let Some(cell) = cell {
-                    cell.post_update();
-                    if cell.hp != hp || cell.is_on_fire || cell.was_on_fire_last_frame {
-                        self.set_chunk_cluster_active(cur_pos);
-                    };
+                if cell.hp != hp || cell.is_on_fire || cell.was_on_fire_last_frame {
+                    self.set_chunk_cluster_active(cur_pos);
                 };
+                cell_handler::handle_cell(self, cell_idx, assets);
             };
         };
     }
