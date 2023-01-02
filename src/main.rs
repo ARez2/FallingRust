@@ -14,7 +14,7 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
-use falling_rust::{Matrix, Material, WIDTH, HEIGHT, SCALE, Framework, Assets, UIInfo};
+use falling_rust::{Matrix, WIDTH, HEIGHT, SCALE, Framework, Assets, UIInfo};
 
 
 // TODO: Add rigidbodies (https://youtu.be/prXuyMCgbTc?t=358)
@@ -101,21 +101,15 @@ fn main() -> Result<(), Error> {
             if framework.handle_event(event) {
                 return;
             };
-            match event {
-                WindowEvent::MouseWheel { delta, ..} => match delta {
-                    winit::event::MouseScrollDelta::LineDelta(x, y) => {
-                        if y > &0.0 {
-                            matrix.brush.increase_material_index();
-                        } else if y < &0.0 {
-                            matrix.brush.decrease_material_index();
-                        };
-                        println!("Material: {:?}", matrix.brush.get_material_from_index());
-                    },
-                    _ => (),
-                },
-                _ => (),
-            }
-        }
+            if let WindowEvent::MouseWheel {delta: winit::event::MouseScrollDelta::LineDelta(_, y), ..} = event {
+                if y > &0.0 {
+                    matrix.brush.increase_material_index();
+                } else if y < &0.0 {
+                    matrix.brush.decrease_material_index();
+                };
+                println!("Material: {:?}", matrix.brush.get_material_from_index());
+            };
+        };
         
         // For everything else, for let winit_input_helper collect events to build its state.
         // It returns `true` when it is time to update our game state and request a redraw.

@@ -1,7 +1,6 @@
 use std::{collections::HashMap, path::PathBuf};
 use crate::Color;
 use glam::IVec2;
-use image::{Rgb32FImage, ImageBuffer};
 use strum::IntoEnumIterator;
 
 use crate::{Material, COLOR_EMPTY};
@@ -134,7 +133,7 @@ impl Assets {
         let mut path = std::env::current_dir().unwrap();
         path.push("data");
         path.push("textures");
-        if tex_name == "" {
+        if tex_name.is_empty() {
             path = path.join("debug_color_02.png");
         } else {
             path.push("materials");
@@ -142,5 +141,10 @@ impl Assets {
             path = path.join("materials").with_file_name(tex_name);
         };
         path
+    }
+}
+impl Default for Assets {
+    fn default() -> Self {
+        Self::new()
     }
 }

@@ -1,10 +1,9 @@
-use rand::rngs::ThreadRng;
 
 pub mod cell_handler {
     use glam::{IVec2, Vec2};
     use rand::Rng;
 
-    use crate::{Matrix, MaterialType, rand_multiplier, Material, Cell, Assets};
+    use crate::{Matrix, MaterialType, rand_multiplier, Material, Assets};
 
     /// Function which gets called for all the cells.
     /// 
@@ -31,7 +30,7 @@ pub mod cell_handler {
             fire_step(matrix, cell_index, assets);
         };
 
-        let did_move = match cellmat.get_type() {
+        let _ = match cellmat.get_type() {
             MaterialType::MovableSolid => movable_solid_step(matrix, cell_index),
             MaterialType::Liquid => liquid_step(matrix, cell_index),
             MaterialType::Gas => gas_step(matrix, cell_index),
@@ -70,7 +69,7 @@ pub mod cell_handler {
                     }
                 }
             };
-        }
+        };
         
         if try_move(matrix, cell_index, bottom, false) {
             let cell = matrix.get_cell_by_cellindex_mut(cell_index).unwrap();
@@ -85,13 +84,10 @@ pub mod cell_handler {
             return false;
         };
         let mut fac = 1.0;
-        if cell.velocity.x > 0.0 {
+        if cell.velocity.x < 0.0 || rand_bool {
             fac = -1.0;
-        } else if cell.velocity.x == 0.0 {
-            if rand_bool {
-                fac = -1.0;
-            };
         };
+        
         // TODO: Maybe split up this function even more so i dont have to add liquid logic in here
         if is_movable_solid {
             cell.velocity.x = (cell.velocity.y / 4.0) * fac;
@@ -103,8 +99,8 @@ pub mod cell_handler {
         let x_vel_check = cell.velocity.x.round().abs().max(1.0) as i32;
         let disp = cell.material.get_dispersion() as i32;
         let cellpos = cell.pos;
-        let bottom_left = cellpos + IVec2::new(-1 * disp * x_vel_check, 1);
-        let bottom_right = cellpos + IVec2::new(1 * disp * x_vel_check, 1);
+        let bottom_left = cellpos + IVec2::new(-disp * x_vel_check, 1);
+        let bottom_right = cellpos + IVec2::new(disp * x_vel_check, 1);
         let mut first = bottom_left;
         let mut second = bottom_right;
         if rand_bool {
@@ -117,7 +113,7 @@ pub mod cell_handler {
         if try_move(matrix, cell_index, second, true) {
             return true;
         };
-        return false;
+        false
     }
 
     /// Handles the cell logic for gases (upside down movable solids)
@@ -129,8 +125,8 @@ pub mod cell_handler {
         };
 
         let disp = cellmat.get_dispersion() as i32;
-        let up_left = cellpos + IVec2::new(-1 * disp, -1);
-        let up_right = cellpos + IVec2::new(1 * disp, -1);
+        let up_left = cellpos + IVec2::new(-disp, -1);
+        let up_right = cellpos + IVec2::new(disp, -1);
         let mut first = up_left;
         let mut second = up_right;
         if matrix.rng.gen_bool(0.5) {
@@ -143,7 +139,7 @@ pub mod cell_handler {
         if try_move(matrix, cell_index, second, true) {
             return true;
         };
-        return false;
+        false
     }
 
     /// Handles the cell logic for liquids (first movable solid step the horizontal)
@@ -162,11 +158,11 @@ pub mod cell_handler {
         if try_move(matrix, cell_index, horizontal_movement, false) {
             return true;
         };
-        return false;
+        false
     }
 
     /// Tries to move the cell to the specified position. Stops when it encounters an obstacle
-    fn try_move(matrix: &mut Matrix, cell_index: usize, mut to_pos: IVec2, diagonal: bool) -> bool {
+    fn try_move(matrix: &mut Matrix, cell_index: usize, to_pos: IVec2, diagonal: bool) -> bool {
         //to_pos = matrix.clamp_pos(to_pos);
         let mut last_possible_cell: Option<_> = None;
         
@@ -185,11 +181,11 @@ pub mod cell_handler {
             return false;
         };
         
-        let x0 = cellpos.x.max(0).min(width);
-        let y0 = cellpos.y.max(0).min(height);
+        let x0 = cellpos.x.clamp(0, width);
+        let y0 = cellpos.y.clamp(0, height);
         let mut num_steps = 0;
         for (x, y) in line_drawing::WalkGrid::new((x0, y0), (to_pos.x, to_pos.y)) {
-            let cur_pos = IVec2::new(x as i32, y as i32);
+            let cur_pos = IVec2::new(x, y);
             if cur_pos == cellpos {
                 continue;
             };
@@ -228,7 +224,7 @@ pub mod cell_handler {
             },
         }
 
-        return false;
+        false
     }
 
     /// Handles fire logic
@@ -245,35 +241,31 @@ pub mod cell_handler {
         let neighbours = matrix.get_neighbor_cells(cellpos, radius);
         let mut extinguisher = (None, 1.0);
         let mut i = 0;
-        for n in neighbours {
-            if let Some(n_cell) = n {
-                let ext = n_cell.material.extinguishes_fire();
-                if ext.0 {
-                    extinguisher = (Some(n_cell.pos), ext.1);
-                    break;
-                };
-
-                let flammability = n_cell.material.get_flammability();
-                if n_cell.is_on_fire {
-                    continue;
-                };
-                if rand_probs[i] > flammability {
-                    let mut has_protection = false;
-                    let n_cell_neighbors = matrix.get_neighbor_cells(n_cell.pos, 5);
-                    for n_cell_neigh in n_cell_neighbors {
-                        if let Some(n_cell_neigh) = n_cell_neigh {
-                            if n_cell_neigh.material.protects_from_fire() {
-                                has_protection = true;
-                                break;
-                            };
-                        };
-                    };
-                    if !has_protection {
-                        spread.push(n_cell.pos);
-                        i += 1;
-                    };
-                }
+        for n_cell in neighbours.into_iter().flatten() {
+            let ext = n_cell.material.extinguishes_fire();
+            if ext.0 {
+                extinguisher = (Some(n_cell.pos), ext.1);
+                break;
             };
+
+            let flammability = n_cell.material.get_flammability();
+            if n_cell.is_on_fire {
+                continue;
+            };
+            if rand_probs[i] > flammability {
+                let mut has_protection = false;
+                let n_cell_neighbors = matrix.get_neighbor_cells(n_cell.pos, 5);
+                for n_cell_neigh in n_cell_neighbors.into_iter().flatten() {
+                    if n_cell_neigh.material.protects_from_fire() {
+                        has_protection = true;
+                        break;
+                    };
+                };
+                if !has_protection {
+                    spread.push(n_cell.pos);
+                    i += 1;
+                };
+            }
         };
         if extinguisher.0.is_some() {
             let ext = matrix.get_cell_mut(extinguisher.0.unwrap());
@@ -293,6 +285,6 @@ pub mod cell_handler {
             };
         };
 
-        return false;
+        false
     }
 }

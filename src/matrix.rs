@@ -1,24 +1,12 @@
 use glam::{IVec2};
 use rand::rngs::ThreadRng;
-use crate::{Color, HEIGHT, WIDTH};
+use crate::{Color, WIDTH};
 use rayon::prelude::*;
 
-use crate::{Cell, Assets, Material, Chunk, cell_handler, CHUNK_SIZE, brush::Brush, NUM_CHUNKS, COLOR_EMPTY};
+use crate::{Cell, Assets, Material, Chunk, cell_handler, CHUNK_SIZE, brush::Brush};
 const CHUNK_SIZE_I32: i32 = CHUNK_SIZE as i32;
 const CHUNK_SIZE_VEC: IVec2 = IVec2::new(CHUNK_SIZE_I32, CHUNK_SIZE_I32);
-
-
-/// Generate a pseudorandom seed for the game's PRNG.
-fn generate_seed() -> (u64, u64) {
-    use byteorder::{ByteOrder, NativeEndian};
-    use getrandom::getrandom;
-    let mut seed = [0_u8; 16];
-    getrandom(&mut seed).expect("failed to getrandom");
-    (
-        NativeEndian::read_u64(&seed[0..8]),
-        NativeEndian::read_u64(&seed[8..16]),
-    )
-}
+const NUM_CHUNKS_X: usize = (WIDTH as f32 / CHUNK_SIZE as f32) as usize;
 
 
 pub struct Matrix {
@@ -29,7 +17,7 @@ pub struct Matrix {
     
     cells: Vec<Cell>,
     data: Vec<usize>,
-    pub chunks: Vec<Vec<Chunk>>,
+    pub chunks: Vec<Chunk>,
 
     pub debug_draw: bool,
     pub update_left: bool,
@@ -41,20 +29,18 @@ pub struct Matrix {
 impl Matrix {
     pub fn new_empty(width: usize, height: usize) -> Self {
         assert!(width != 0 && height != 0);
-        let size = width.checked_mul(height).expect("too big");
+        //let size = width.checked_mul(height).expect("too big");
 
-        let mut cells = Vec::<Cell>::new();
+        let cells = Vec::<Cell>::new();
         let data = vec![0; width * height];
         
         let mut chunks = vec![];
         for y in (0..height as i32).step_by(CHUNK_SIZE) {
-            let mut row = Vec::<Chunk>::new();
             for x in (0..width as i32).step_by(CHUNK_SIZE) {
                 let chunk = Chunk::new(IVec2::new(x, y), CHUNK_SIZE);
-                row.push(chunk);
+                chunks.push(chunk);
             };
-            chunks.push(row);
-        }
+        };
 
 
         Self {
@@ -80,31 +66,11 @@ impl Matrix {
         (chunk_pos.x >= 0 && chunk_pos.x < self.width as i32 / CHUNK_SIZE_I32) && (chunk_pos.y >= 0 && chunk_pos.y < self.height as i32 / CHUNK_SIZE_I32)
     }
     
-    /// Returns a reference to the chunk at this cell position
-    pub fn get_chunk_for_pos(&self, pos: IVec2) -> Option<&Chunk> {
-        let chunk_pos = pos / IVec2::new(CHUNK_SIZE_I32, CHUNK_SIZE_I32);
-        if self.chunk_in_bounds(chunk_pos) {
-            Some(&self.chunks[chunk_pos.y as usize][chunk_pos.x as usize])
-        } else {
-            None
-        }
-    }
-    
-    /// Returns a mutable reference to the chunk at this cell position
-    pub fn get_chunk_for_pos_mut(&mut self, pos: IVec2) -> Option<&mut Chunk> {
-        let chunk_pos = pos / CHUNK_SIZE_VEC;
-        if self.chunk_in_bounds(chunk_pos) {
-            Some(&mut self.chunks[chunk_pos.y as usize][chunk_pos.x as usize])
-        } else {
-            None
-        }
-    }
-    
     /// Tells the chunk to be updated the next frame
     pub fn set_chunk_active(&mut self, pos: IVec2) {
         let chunk_pos = pos / CHUNK_SIZE_VEC;
         if self.chunk_in_bounds(chunk_pos) {
-            self.chunks[chunk_pos.y as usize][chunk_pos.x as usize].should_step_next_frame = true;
+            self.chunks[chunk_pos.x as usize + chunk_pos.y as usize * NUM_CHUNKS_X].should_step_next_frame = true;
         };
     }
     
@@ -203,7 +169,6 @@ impl Matrix {
             let down = IVec2::new(0, 1);
             return vec![self.get_cell(pos - left), self.get_cell(pos + left), self.get_cell(pos - down), self.get_cell(pos + down)];
         };
-        let r = radius as f32 / 2.0;
 
         let mut neighbors = vec![];
         for y in (pos.y-radius..=pos.y+radius).rev() {
@@ -222,7 +187,7 @@ impl Matrix {
         let cell_at_pos = self.get_data_at_pos(cell.pos);
         // If there is already a cell at that position, replace that cell in self.cells with the new cell
         if cell_at_pos != 0 {
-            let old = std::mem::replace(self.get_cell_from_cells_mut(cell_at_pos).unwrap(), cell);
+            let _ = std::mem::replace(self.get_cell_from_cells_mut(cell_at_pos).unwrap(), cell);
         } else {
             let c_idx = self.cell_idx(cell.pos);
             self.cells.push(cell);
@@ -231,7 +196,7 @@ impl Matrix {
     }
 
     /// Replaces the cell at cellpos with the last cell in self.cells (faster than shifting) and updates self.data
-    pub fn remove_cell_from_cells(&mut self, cellpos: IVec2, assets: &mut Assets) {
+    pub fn remove_cell_from_cells(&mut self, cellpos: IVec2) {
         if self.cells.is_empty() {
             return;
         };
@@ -255,7 +220,7 @@ impl Matrix {
     /// Places a cell at specified pos with the material given
     pub fn set_cell_material(&mut self, mut pos: IVec2, material: Material, swap: bool, assets: &mut Assets) {
         if material == Material::Empty {
-            self.remove_cell_from_cells(pos, assets);
+            self.remove_cell_from_cells(pos);
             return;
         };
         pos = self.clamp_pos(pos);
@@ -280,7 +245,7 @@ impl Matrix {
         let cell = self.get_cell_from_cells_mut(data_at_cellpos).unwrap();
         cell.pos = pos;
         let cellmat = cell.material;
-        let cell_velocity = cell.velocity;
+        let _cell_velocity = cell.velocity;
         self.data[target_pos_index] = data_at_cellpos;
 
         // Target cell is empty
@@ -354,10 +319,8 @@ impl Matrix {
     /// New frame. Update the matrix (includes cells and chunks)
     pub fn update(&mut self, assets: &mut Assets) {
         // Tells all chunks that a new frame has begun
-        self.chunks.par_iter_mut().for_each(|chunkrow| {
-            chunkrow.par_iter_mut().for_each(|chunk| {
-                chunk.start_step();
-            });
+        self.chunks.par_iter_mut().for_each(|chunk| {
+            chunk.start_step();
         });
 
         // Helpers to only convert to i32 once
@@ -392,7 +355,7 @@ impl Matrix {
         if !self.chunk_in_bounds(chunk_pos) {
             return;
         };
-        let cur_chunk = &self.chunks[chunk_pos.y as usize][chunk_pos.x as usize];
+        let cur_chunk = &self.chunks[chunk_pos.x as usize + chunk_pos.y as usize * NUM_CHUNKS_X];
         
         // If the chunk should process, update the cell
         if cur_chunk.should_step {
@@ -431,12 +394,17 @@ impl Matrix {
         for c in self.cells.iter() {
             let mut draw_color = c.color;
             
-            let chunk = self.get_chunk_for_pos(c.pos);
-            if let Some(chunk) = chunk {
+            let chunk_pos = c.pos / IVec2::new(CHUNK_SIZE_I32, CHUNK_SIZE_I32);
+            if self.chunk_in_bounds(chunk_pos) {
+                let chunk = &self.chunks[(chunk_pos.x as usize + chunk_pos.y as usize * NUM_CHUNKS_X)];
                 if self.debug_draw && chunk.should_step {
                     draw_color = Color::RED;
-                }
+                };
             };
+
+            // let chunk = self.get_chunk_for_pos(c.pos);
+            // if let Some(chunk) = chunk {
+            // };
             
             let idx = self.cell_idx(c.pos) * 4;
             let pixel_color = &mut screen[idx..idx+4];
@@ -449,8 +417,8 @@ impl Matrix {
 
     /// Draws a line with the specified material
     pub fn set_line(&mut self, x0: isize, y0: isize, x1: isize, y1: isize, material: Material, assets: &mut Assets) {
-        let x0 = x0.max(0).min(self.width as isize);
-        let y0 = y0.max(0).min(self.height as isize);
+        let x0 = x0.clamp(0, self.width as isize);
+        let y0 = y0.clamp(0, self.height as isize);
         for (x, y) in line_drawing::Bresenham::new((x0, y0), (x1, y1)) {
             let pos = IVec2::new(x as i32, y as i32);
             if self.is_in_bounds(pos) {

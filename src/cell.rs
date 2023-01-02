@@ -1,4 +1,4 @@
-use std::{fmt::Display, rc::Rc};
+use std::{fmt::Display};
 
 use crate::{Color, darken_color};
 use glam::{IVec2, Vec2};

@@ -45,6 +45,11 @@ impl UIInfo {
         }
     }
 }
+impl Default for UIInfo {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 
 /// Returns 1 or -1 at random
@@ -59,8 +64,8 @@ pub fn darken_color(mut color: Color, amount: f64) -> Color {
     color.r *= amount;
     color.g *= amount;
     color.b *= amount;
-    color.r = color.r.max(0.0).min(1.0);
-    color.g = color.g.max(0.0).min(1.0);
-    color.b = color.b.max(0.0).min(1.0);
+    color.r = color.r.clamp(0.0, 1.0);
+    color.g = color.g.clamp(0.0, 1.0);
+    color.b = color.b.clamp(0.0, 1.0);
     color
 }

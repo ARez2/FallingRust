@@ -214,7 +214,7 @@ impl Gui {
         .open(&mut self.info_open)
         .anchor(Align2::RIGHT_TOP, (-5.0, 5.0))
         .show(ctx, |ui| {
-            ui.label(format!("FPS: {}", ui_info.num_frames.round().to_string()));
+            ui.label(format!("FPS: {}", ui_info.num_frames.round()));
         });
     }
 }
