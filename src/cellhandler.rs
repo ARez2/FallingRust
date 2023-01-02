@@ -1,9 +1,9 @@
 
 pub mod cell_handler {
     use glam::{IVec2, Vec2};
-    use rand::Rng;
+    use rand::{Rng, seq::SliceRandom};
 
-    use crate::{Matrix, MaterialType, rand_multiplier, Material, Assets};
+    use crate::{Matrix, MaterialType, rand_multiplier, Material, Assets, Cell};
 
     /// Function which gets called for all the cells.
     /// 
@@ -234,25 +234,35 @@ pub mod cell_handler {
         let cellpos = cell.pos;
         let mut spread = vec![];
         let radius = 2;
+        let num_neighbors = 8*radius;
         let mut rand_probs = vec![];
-        for _ in 0..8*radius {
+        for _ in 0..num_neighbors {
             rand_probs.push(matrix.rng.gen_range(0.0..=1.0));
         };
-        let neighbours = matrix.get_neighbor_cells(cellpos, radius);
+        let mut indices: Vec<usize> = (0..num_neighbors - 1).collect();
+        indices.shuffle(&mut matrix.rng);
+
+        let neighbors = matrix.get_neighbor_cells(cellpos, radius as i32);
+        let neighbor_cells: Vec<&Cell> = neighbors.into_iter().flatten().collect();
         let mut extinguisher = (None, 1.0);
         let mut i = 0;
-        for n_cell in neighbours.into_iter().flatten() {
+        let num_neigh = neighbor_cells.len();
+        for index in indices {
+            if index >= num_neigh {
+                continue;
+            };
+            let n_cell = neighbor_cells[index];
             let ext = n_cell.material.extinguishes_fire();
             if ext.0 {
                 extinguisher = (Some(n_cell.pos), ext.1);
                 break;
             };
-
+    
             let flammability = n_cell.material.get_flammability();
             if n_cell.is_on_fire {
                 continue;
             };
-            if rand_probs[i] > flammability {
+            if rand_probs[i] < flammability {
                 let mut has_protection = false;
                 let n_cell_neighbors = matrix.get_neighbor_cells(n_cell.pos, 5);
                 for n_cell_neigh in n_cell_neighbors.into_iter().flatten() {
@@ -267,14 +277,17 @@ pub mod cell_handler {
                 };
             }
         };
+       
         if extinguisher.0.is_some() {
             let ext = matrix.get_cell_mut(extinguisher.0.unwrap());
             if let Some(ext) = ext {
                 ext.hp = (ext.hp as f32 * extinguisher.1).round() as u64;
+                if ext.material.get_type() == MaterialType::Liquid {
+                    matrix.set_cell_material(cellpos + IVec2::new(0, -1), Material::Smoke, false, assets);
+                };
             };
             let cell = matrix.get_cell_by_cellindex_mut(cell_index).unwrap();
             cell.is_on_fire = false;
-            matrix.set_cell_material(cellpos + IVec2::new(0, -1), Material::Smoke, false, assets);
             return false;
         };
 

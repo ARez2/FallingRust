@@ -51,18 +51,12 @@ impl Cell {
         } else if self.was_on_fire_last_frame {
             self.color = darken_color(self.base_color, self.hp as f64 / self.material.get_hp() as f64);
         };
+        self.was_on_fire_last_frame = self.is_on_fire;
     }
     
     /// Updates the cells properties after the cells has been handled by the cellhandler
     pub fn post_update(&mut self) {
         self.is_free_falling = self.pos.y != self.prev_pos.y;
-        // if self.is_free_falling {
-        //     self.color = Color::GREEN;
-        // } else {
-            //     self.color = self.material.get_color();
-            // };
-                
-        self.was_on_fire_last_frame = self.is_on_fire;
         self.prev_pos = self.pos;
     }
 
