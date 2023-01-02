@@ -109,4 +109,11 @@ impl Material {
             _ => (false, 1.0),
         }
     }
+
+    pub fn protects_from_fire(&self) -> bool {
+        match self {
+            Material::Water => true,
+            _ => false,
+        }
+    }
 }

@@ -2,6 +2,7 @@ use std::{fmt::Display, rc::Rc};
 
 use crate::{Color, darken_color};
 use glam::{IVec2, Vec2};
+use rand::{rngs::ThreadRng, Rng};
 
 use crate::{Material, MaterialType, rand_multiplier};
 
@@ -47,7 +48,7 @@ impl Cell {
         if self.is_on_fire {
             self.hp = self.hp.saturating_sub(1);
             self.color = Color {r: 1.0, g: 0.25 + 0.25 * rand_multiplier() as f64, b: 0.0, a: 1.0}
-        } else {
+        } else if self.was_on_fire_last_frame {
             self.color = darken_color(self.base_color, self.hp as f64 / self.material.get_hp() as f64);
         };
     }
@@ -66,13 +67,12 @@ impl Cell {
     }
 
     /// Tries to set a neighbouring cells "is_free_falling" to true based on inertia and that cells intertial resistance
-    pub fn attempt_free_fall(&mut self) {
+    pub fn attempt_free_fall(&mut self, mut rng: ThreadRng) {
         if self.material.get_type() == MaterialType::MovableSolid {
             let chance = self.material.get_intertial_resistance();
-            let rng = rand::random::<f32>();
+            let rng = rng.gen_range(0.0..=1.0);
             if rng > chance {
                 self.is_free_falling = true;
-                //self.color = Color::GREEN;
             };
         };
     }

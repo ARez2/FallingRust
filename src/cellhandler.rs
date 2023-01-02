@@ -1,7 +1,8 @@
-
+use rand::rngs::ThreadRng;
 
 pub mod cell_handler {
     use glam::{IVec2, Vec2};
+    use rand::Rng;
 
     use crate::{Matrix, MaterialType, rand_multiplier, Material, Cell, Assets};
 
@@ -61,9 +62,10 @@ pub mod cell_handler {
                         if p.abs() == IVec2::ONE && p == IVec2::ZERO {
                             continue;
                         };
+                        let r = matrix.rng.clone();
                         let neighbour = matrix.get_cell_mut(cellpos + p);
                         if let Some(n_cell) = neighbour {
-                            n_cell.attempt_free_fall();
+                            n_cell.attempt_free_fall(r);
                         };
                     }
                 }
@@ -76,6 +78,7 @@ pub mod cell_handler {
             return true;
         };
 
+        let rand_bool = matrix.rng.gen_bool(0.5);
         let cell = matrix.get_cell_by_cellindex_mut(cell_index).unwrap();
         if !cell.is_free_falling {
             cell.velocity = Vec2::ZERO;
@@ -85,7 +88,7 @@ pub mod cell_handler {
         if cell.velocity.x > 0.0 {
             fac = -1.0;
         } else if cell.velocity.x == 0.0 {
-            if rand::random() {
+            if rand_bool {
                 fac = -1.0;
             };
         };
@@ -104,7 +107,7 @@ pub mod cell_handler {
         let bottom_right = cellpos + IVec2::new(1 * disp * x_vel_check, 1);
         let mut first = bottom_left;
         let mut second = bottom_right;
-        if rand::random() {
+        if rand_bool {
             first = bottom_right;
             second = bottom_left
         };
@@ -130,7 +133,7 @@ pub mod cell_handler {
         let up_right = cellpos + IVec2::new(1 * disp, -1);
         let mut first = up_left;
         let mut second = up_right;
-        if rand::random() {
+        if matrix.rng.gen_bool(0.5) {
             first = up_right;
             second = up_left
         };
@@ -234,8 +237,14 @@ pub mod cell_handler {
         cell.hp = cell.hp.saturating_sub(1);
         let cellpos = cell.pos;
         let mut spread = vec![];
-        let neighbours = matrix.get_neighbor_cells(cellpos, 2);
+        let radius = 2;
+        let mut rand_probs = vec![];
+        for _ in 0..8*radius {
+            rand_probs.push(matrix.rng.gen_range(0.0..=1.0));
+        };
+        let neighbours = matrix.get_neighbor_cells(cellpos, radius);
         let mut extinguisher = (None, 1.0);
+        let mut i = 0;
         for n in neighbours {
             if let Some(n_cell) = n {
                 let ext = n_cell.material.extinguishes_fire();
@@ -249,17 +258,18 @@ pub mod cell_handler {
                     continue;
                 };
                 let mut has_protection = false;
-                let n_cell_neighbors = matrix.get_neighbor_cells(n_cell.pos, 7);
+                let n_cell_neighbors = matrix.get_neighbor_cells(n_cell.pos, 5);
                 for n_cell_neigh in n_cell_neighbors {
                     if let Some(n_cell_neigh) = n_cell_neigh {
-                        if n_cell_neigh.material.extinguishes_fire().0 {
+                        if n_cell_neigh.material.protects_from_fire() {
                             has_protection = true;
                             break;
                         };
                     };
                 };
-                if !has_protection && rand::random::<f32>() < flammability {
+                if !has_protection && rand_probs[i] < flammability {
                     spread.push(n_cell.pos);
+                    i += 1;
                 };
             };
         };

@@ -4,6 +4,7 @@ use crate::{Color, HEIGHT, WIDTH};
 
 use crate::{Cell, Assets, Material, Chunk, cell_handler, CHUNK_SIZE, brush::Brush, NUM_CHUNKS, COLOR_EMPTY};
 const CHUNK_SIZE_I32: i32 = CHUNK_SIZE as i32;
+const CHUNK_SIZE_VEC: IVec2 = IVec2::new(CHUNK_SIZE_I32, CHUNK_SIZE_I32);
 
 
 /// Generate a pseudorandom seed for the game's PRNG.
@@ -21,7 +22,9 @@ fn generate_seed() -> (u64, u64) {
 
 pub struct Matrix {
     pub width: usize,
+    clamp_width: i32,
     pub height: usize,
+    clamp_height: i32,
     
     cells: Vec<Cell>,
     data: Vec<usize>,
@@ -55,7 +58,9 @@ impl Matrix {
 
         Self {
             width,
+            clamp_width: width as i32 - 1,
             height,
+            clamp_height: height as i32 - 1,
 
             cells,
             data,
@@ -86,7 +91,7 @@ impl Matrix {
     
     /// Returns a mutable reference to the chunk at this cell position
     pub fn get_chunk_for_pos_mut(&mut self, pos: IVec2) -> Option<&mut Chunk> {
-        let chunk_pos = pos / IVec2::new(CHUNK_SIZE_I32, CHUNK_SIZE_I32);
+        let chunk_pos = pos / CHUNK_SIZE_VEC;
         if self.chunk_in_bounds(chunk_pos) {
             Some(&mut self.chunks[chunk_pos.y as usize][chunk_pos.x as usize])
         } else {
@@ -96,10 +101,10 @@ impl Matrix {
     
     /// Tells the chunk to be updated the next frame
     pub fn set_chunk_active(&mut self, pos: IVec2) {
-        let chunk_res = self.get_chunk_for_pos_mut(pos);
-        if let Some(chunk) = chunk_res {
-            chunk.should_step_next_frame = true;
-        }
+        let chunk_pos = pos / CHUNK_SIZE_VEC;
+        if self.chunk_in_bounds(chunk_pos) {
+            self.chunks[chunk_pos.y as usize][chunk_pos.x as usize].should_step_next_frame = true;
+        };
     }
     
     /// Tells the chunk and all chunks around it to be updated the next frame
@@ -116,8 +121,8 @@ impl Matrix {
     }
 
     /// Clamps the position to be within the bounds of the pixel buffer
-    pub fn clamp_pos(&self, mut pos: IVec2) -> IVec2 {
-        IVec2::new(pos.x.min(self.width as i32 - 1).max(0), pos.y.min(self.height as i32 - 1).max(0))
+    pub fn clamp_pos(&self, pos: IVec2) -> IVec2 {
+        IVec2::new(std::cmp::max(0, std::cmp::min(pos.x, self.clamp_width)), std::cmp::max(0, std::cmp::min(pos.y, self.clamp_height)))
     }
 
     /// Converts the position into an index to be used in self.data
@@ -253,24 +258,24 @@ impl Matrix {
             return;
         };
         pos = self.clamp_pos(pos);
-        let mut cell = Cell::new(pos, material);
+        let cell = Cell::new(pos, material);
         self.add_cell_to_cells(cell, assets);
         self.set_cell_by_pos(pos, pos, swap);
     }
 
     /// Places a cell which is located at cellpos at the specified target position (pos)
     pub fn set_cell_by_pos(&mut self, pos: IVec2, cellpos: IVec2, swap: bool) {
-        // Index of the cell inside self.data
-        let cell_pos_index = self.cell_idx(cellpos);
-        // Index of position where the cell wants to go inside self.data
-        let target_pos_index = self.cell_idx(pos);
-        
         let data_at_cellpos = self.get_data_at_pos(cellpos);
-        let data_at_targetpos = self.get_data_at_pos(pos);
         if data_at_cellpos == 0 {
             return;
         };
 
+        // Index of the cell inside self.data
+        let cell_pos_index = self.cell_idx(cellpos);
+        // Index of position where the cell wants to go inside self.data
+        let target_pos_index = self.cell_idx(pos);
+        let data_at_targetpos = self.get_data_at_pos(pos);
+        
         let cell = self.get_cell_from_cells_mut(data_at_cellpos).unwrap();
         cell.pos = pos;
         let cellmat = cell.material;
@@ -294,8 +299,8 @@ impl Matrix {
         };
         
         // Set both positions chunks active (new and previous cell position)
-        self.set_chunk_cluster_active(cellpos);
-        self.set_chunk_cluster_active(pos);
+        self.set_chunk_active(cellpos);
+        self.set_chunk_active(pos);
         let x_chunked = pos.x % CHUNK_SIZE_I32;
         let x_chunked_upper = CHUNK_SIZE_I32 - 1 - x_chunked;
         if x_chunked <= 5 || x_chunked_upper <= 5 {
