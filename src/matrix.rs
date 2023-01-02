@@ -1,6 +1,7 @@
 use glam::{IVec2};
 use rand::rngs::ThreadRng;
 use crate::{Color, HEIGHT, WIDTH};
+use rayon::prelude::*;
 
 use crate::{Cell, Assets, Material, Chunk, cell_handler, CHUNK_SIZE, brush::Brush, NUM_CHUNKS, COLOR_EMPTY};
 const CHUNK_SIZE_I32: i32 = CHUNK_SIZE as i32;
@@ -353,20 +354,20 @@ impl Matrix {
     /// New frame. Update the matrix (includes cells and chunks)
     pub fn update(&mut self, assets: &mut Assets) {
         // Tells all chunks that a new frame has begun
-        for chunkrow in self.chunks.iter_mut() {
-            for chunk in chunkrow.iter_mut() {
+        self.chunks.par_iter_mut().for_each(|chunkrow| {
+            chunkrow.par_iter_mut().for_each(|chunk| {
                 chunk.start_step();
-            }
-        };
+            });
+        });
 
         // Helpers to only convert to i32 once
         let w = self.width as i32;
         let h = self.height as i32;
 
         // Tell every cells that a new frame has begun
-        for cell in self.cells.iter_mut() {
+        self.cells.par_iter_mut().for_each(|cell| {
             cell.processed_this_frame = false;
-        };
+        });
 
         // Iterate all cells from the bottom up and either from left to right or the other way around
         for y in (0..h).rev() {
@@ -387,21 +388,20 @@ impl Matrix {
     fn step_all(&mut self, x: i32, y: i32, assets: &mut Assets) {
         let cur_pos = IVec2::new(x, y);
         
-        let cur_chunk = self.get_chunk_for_pos(cur_pos);
-        if cur_chunk.is_none() {
+        let chunk_pos = cur_pos / CHUNK_SIZE_VEC;
+        if !self.chunk_in_bounds(chunk_pos) {
             return;
         };
-        let current_chunk = cur_chunk.unwrap();
+        let cur_chunk = &self.chunks[chunk_pos.y as usize][chunk_pos.x as usize];
         
         // If the chunk should process, update the cell
-        if current_chunk.should_step {
+        if cur_chunk.should_step {
             let cell_idx = self.get_data_at_pos(cur_pos);
             if cell_idx == 0 {
                 return;
             };
             let cell = self.get_cell_by_cellindex_mut(cell_idx).unwrap();
             if !cell.processed_this_frame {
-                //let cell = self.get_cell_by_cellindex_mut(cell_idx).unwrap();
                 let hp = cell.hp;
                 cell.update();
                 cell.processed_this_frame = true;
@@ -427,6 +427,7 @@ impl Matrix {
         unsafe {
             std::ptr::write_bytes(screen.as_mut_ptr(), 0, screen.len());
         };
+
         for c in self.cells.iter() {
             let mut draw_color = c.color;
             

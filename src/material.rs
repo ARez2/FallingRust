@@ -1,6 +1,6 @@
-use crate::Color;
 use strum_macros::EnumIter;
 
+use crate::Color;
 
 
 #[derive(Clone, Copy, PartialEq)]

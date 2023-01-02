@@ -257,20 +257,22 @@ pub mod cell_handler {
                 if n_cell.is_on_fire {
                     continue;
                 };
-                let mut has_protection = false;
-                let n_cell_neighbors = matrix.get_neighbor_cells(n_cell.pos, 5);
-                for n_cell_neigh in n_cell_neighbors {
-                    if let Some(n_cell_neigh) = n_cell_neigh {
-                        if n_cell_neigh.material.protects_from_fire() {
-                            has_protection = true;
-                            break;
+                if rand_probs[i] > flammability {
+                    let mut has_protection = false;
+                    let n_cell_neighbors = matrix.get_neighbor_cells(n_cell.pos, 5);
+                    for n_cell_neigh in n_cell_neighbors {
+                        if let Some(n_cell_neigh) = n_cell_neigh {
+                            if n_cell_neigh.material.protects_from_fire() {
+                                has_protection = true;
+                                break;
+                            };
                         };
                     };
-                };
-                if !has_protection && rand_probs[i] < flammability {
-                    spread.push(n_cell.pos);
-                    i += 1;
-                };
+                    if !has_protection {
+                        spread.push(n_cell.pos);
+                        i += 1;
+                    };
+                }
             };
         };
         if extinguisher.0.is_some() {
