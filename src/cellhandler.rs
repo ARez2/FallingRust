@@ -239,7 +239,7 @@ pub mod cell_handler {
         for _ in 0..num_neighbors {
             rand_probs.push(matrix.rng.gen_range(0.0..=1.0));
         };
-        let mut indices: Vec<usize> = (0..num_neighbors - 1).collect();
+        let mut indices: Vec<usize> = (0..num_neighbors).collect();
         indices.shuffle(&mut matrix.rng);
 
         let neighbors = matrix.get_neighbor_cells(cellpos, radius as i32);

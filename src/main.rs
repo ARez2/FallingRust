@@ -1,11 +1,11 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-use std::time::Duration;
+use std::{time::Duration, borrow::Cow};
 
 use glam::IVec2;
 use log::{error};
-use pixels::{Error, Pixels, SurfaceTexture};
+use pixels::{Error, Pixels, SurfaceTexture, wgpu::{ShaderModuleDescriptor, ShaderSource}};
 use winit::{
     dpi::{LogicalSize, LogicalPosition},
     event::{Event, VirtualKeyCode, WindowEvent},
@@ -14,7 +14,7 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
-use falling_rust::{Matrix, WIDTH, HEIGHT, SCALE, Framework, Assets, UIInfo};
+use falling_rust::{Matrix, WIDTH, HEIGHT, SCALE, Framework, Assets, UIInfo, matrix::CHUNK_SIZE_VEC, NoiseRenderer};
 
 
 // TODO: Add rigidbodies (https://youtu.be/prXuyMCgbTc?t=358)
@@ -43,8 +43,8 @@ fn main() -> Result<(), Error> {
             .unwrap()
     };
 
+    let window_size = window.inner_size();
     let (mut pixels, mut framework) = {
-        let window_size = window.inner_size();
         let scale_factor = window.scale_factor() as f32;
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
         let pixels = Pixels::new(WIDTH, HEIGHT, surface_texture)?;
@@ -57,6 +57,10 @@ fn main() -> Result<(), Error> {
         );
         (pixels, framework)
     };
+
+    let mut time = 0.0;
+    let mut noise_renderer = NoiseRenderer::new(&pixels, window_size.width, window_size.height)?;
+    
     let mut ui_info = UIInfo::new();
     let mut assets: Assets = Assets::new();
     let mut matrix = Matrix::new_empty(WIDTH as usize, HEIGHT as usize);
@@ -81,9 +85,16 @@ fn main() -> Result<(), Error> {
 
             // Render everything together
             let render_result = pixels.render_with(|encoder, render_target, context| {
+                let noise_texture = noise_renderer.get_texture_view();
                 // Render the world texture
-                context.scaling_renderer.render(encoder, render_target);
+                context.scaling_renderer.render(encoder, noise_texture);
 
+                noise_renderer.lights[0].position[0] = time % 2.0;
+                noise_renderer.update(&context.queue, time);
+                time += 0.01;
+
+                
+                noise_renderer.render(encoder, render_target, context.scaling_renderer.clip_rect());
                 // Render egui
                 framework.render(encoder, render_target, context);
 
@@ -166,8 +177,9 @@ fn main() -> Result<(), Error> {
                 .unwrap_or_default();
                 
             if input.mouse_pressed(0) {
-                //println!("Mouse click at {:?}", mouse_cell);
                 let pos = IVec2::new(mouse_cell.0 as i32, mouse_cell.1 as i32);
+                let cp = pos / CHUNK_SIZE_VEC;
+                println!("Mouse click at {:?}, In bounds: {}, Chunk: {}, Chunk in bounds: {}", mouse_cell, matrix.is_in_bounds(pos), cp, matrix.chunk_in_bounds(cp));
                 matrix.draw_brush(pos, matrix.brush.get_material_from_index(), &mut assets);
             } else {
                 let release = input.mouse_released(0);
@@ -193,6 +205,11 @@ fn main() -> Result<(), Error> {
             if let Some(size) = input.window_resized() {
                 if let Err(err) = pixels.resize_surface(size.width, size.height) {
                     error!("pixels.resize_surface() failed: {err}");
+                    *control_flow = ControlFlow::Exit;
+                    return;
+                }
+                if let Err(err) = noise_renderer.resize(&pixels, size.width, size.height) {
+                    error!("noise_renderer.resize() failed: {err}");
                     *control_flow = ControlFlow::Exit;
                     return;
                 }

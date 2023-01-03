@@ -1,12 +1,13 @@
 use glam::{IVec2};
 use rand::{rngs::ThreadRng, seq::SliceRandom};
-use crate::{Color, WIDTH};
+use crate::{Color, WIDTH, HEIGHT};
 use rayon::prelude::*;
 
 use crate::{Cell, Assets, Material, Chunk, cell_handler, CHUNK_SIZE, brush::Brush};
 const CHUNK_SIZE_I32: i32 = CHUNK_SIZE as i32;
-const CHUNK_SIZE_VEC: IVec2 = IVec2::new(CHUNK_SIZE_I32, CHUNK_SIZE_I32);
-const NUM_CHUNKS_X: usize = (WIDTH as f32 / CHUNK_SIZE as f32) as usize;
+pub const CHUNK_SIZE_VEC: IVec2 = IVec2::new(CHUNK_SIZE_I32, CHUNK_SIZE_I32);
+const NUM_CHUNKS_X: usize = (WIDTH / CHUNK_SIZE as u32) as usize;
+const NUM_CHUNKS_Y: usize = (HEIGHT / CHUNK_SIZE as u32) as usize;
 
 
 pub struct Matrix {
@@ -62,7 +63,7 @@ impl Matrix {
     }
 
     /// Checks wether the chunk position is valid
-    fn chunk_in_bounds(&self, chunk_pos: IVec2) -> bool {
+    pub fn chunk_in_bounds(&self, chunk_pos: IVec2) -> bool {
         (chunk_pos.x >= 0 && chunk_pos.x < self.width as i32 / CHUNK_SIZE_I32) && (chunk_pos.y >= 0 && chunk_pos.y < self.height as i32 / CHUNK_SIZE_I32)
     }
     
@@ -390,7 +391,7 @@ impl Matrix {
         for c in self.cells.iter() {
             let mut draw_color = c.color;
             
-            let chunk_pos = c.pos / IVec2::new(CHUNK_SIZE_I32, CHUNK_SIZE_I32);
+            let chunk_pos = c.pos / CHUNK_SIZE_VEC;
             if self.chunk_in_bounds(chunk_pos) {
                 let chunk = &self.chunks[(chunk_pos.x as usize + chunk_pos.y as usize * NUM_CHUNKS_X)];
                 if self.debug_draw && chunk.should_step {

@@ -25,10 +25,12 @@ pub use chunk::Chunk;
 
 pub use pixels::wgpu::Color;
 
+pub mod renderer;
+pub use renderer::NoiseRenderer;
 
 pub const CHUNK_SIZE: usize = 32;
 const NUM_CHUNKS: u32 = 16;//8 - 160, 16 - 80
-pub const WIDTH: u32 = CHUNK_SIZE as u32 * NUM_CHUNKS;
+pub const WIDTH: u32 = CHUNK_SIZE as u32 * NUM_CHUNKS;//
 pub const HEIGHT: u32 = CHUNK_SIZE as u32 * NUM_CHUNKS;
 pub const SCALE: f64 = 2.0;
 
