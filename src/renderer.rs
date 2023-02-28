@@ -34,6 +34,31 @@ impl LightUniform {
     }
 }
 
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Locals {
+    pub time: f32,
+    // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here
+    _padding: [u32; 3],
+    pub texture_width: f32,
+    _padding2: [u32; 3],
+    pub texture_height: f32,
+    _padding3: [u32; 3],
+    //_padding4: [u32; 1],
+}
+impl Locals {
+    pub fn new() -> Self {
+        Locals {
+            time: 0.0,
+            _padding: [0; 3],
+            texture_width: 0.0,
+            _padding2: [0; 3],
+            texture_height: 0.0,
+            _padding3: [0; 3],
+        }
+    }
+}
+
 
 pub struct NoiseRenderer {
     texture_view: wgpu::TextureView,
@@ -41,11 +66,12 @@ pub struct NoiseRenderer {
     bind_group_layout: wgpu::BindGroupLayout,
     bind_group: wgpu::BindGroup,
     render_pipeline: wgpu::RenderPipeline,
-    time_buffer: wgpu::Buffer,
+    locals_buffer: wgpu::Buffer,
     light_buffer: wgpu::Buffer,
     vertex_buffer: wgpu::Buffer,
 
     pub lights: [LightUniform; 32],
+    pub locals: Locals,
 }
 
 impl NoiseRenderer {
@@ -102,10 +128,11 @@ impl NoiseRenderer {
             }],
         };
 
+        let locals = Locals::new();
         // Create uniform buffer
-        let time_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("NoiseRenderer u_Time"),
-            contents: &0.0_f32.to_ne_bytes(),
+        let locals_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("NoiseRenderer Locals"),
+            contents: bytemuck::cast_slice(&[locals]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -174,7 +201,7 @@ impl NoiseRenderer {
             &bind_group_layout,
             &texture_view,
             &sampler,
-            &time_buffer,
+            &locals_buffer,
             &light_buffer,
         );
 
@@ -216,11 +243,12 @@ impl NoiseRenderer {
             bind_group_layout,
             bind_group,
             render_pipeline,
-            time_buffer,
+            locals_buffer,
             light_buffer,
             vertex_buffer,
 
             lights,
+            locals,
         })
     }
 
@@ -240,15 +268,15 @@ impl NoiseRenderer {
             &self.bind_group_layout,
             &self.texture_view,
             &self.sampler,
-            &self.time_buffer,
+            &self.locals_buffer,
             &self.light_buffer,
         );
 
         Ok(())
     }
 
-    pub fn update(&self, queue: &wgpu::Queue, time: f32) {
-        queue.write_buffer(&self.time_buffer, 0, &time.to_ne_bytes());
+    pub fn update(&self, queue: &wgpu::Queue) {
+        queue.write_buffer(&self.locals_buffer, 0, bytemuck::cast_slice(&[self.locals]));
         queue.write_buffer(&self.light_buffer, 0, bytemuck::cast_slice(&self.lights))
     }
 
@@ -309,7 +337,7 @@ fn create_bind_group(
     bind_group_layout: &wgpu::BindGroupLayout,
     texture_view: &wgpu::TextureView,
     sampler: &wgpu::Sampler,
-    time_buffer: &wgpu::Buffer,
+    locals_buffer: &wgpu::Buffer,
     light_buffer: &wgpu::Buffer,
 ) -> pixels::wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -326,7 +354,7 @@ fn create_bind_group(
             },
             wgpu::BindGroupEntry {
                 binding: 2,
-                resource: time_buffer.as_entire_binding(),
+                resource: locals_buffer.as_entire_binding(),
             },
             wgpu::BindGroupEntry {
                 binding: 3,

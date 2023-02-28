@@ -27,6 +27,8 @@ struct Light {
 @group(0) @binding(1) var r_tex_sampler: sampler;
 struct Locals {
     time: f32,
+    texture_width: f32,
+    texture_height: f32,
 };
 @group(0) @binding(2) var<uniform> r_locals: Locals;
 @group(0) @binding(3) var<uniform> lights: array<Light, 32>;
@@ -47,34 +49,32 @@ fn random_vec2(st: vec2<f32>) -> f32 {
     return random(dot(st, vec2<f32>(random_x, random_y)));
 }
 
+let glow_size: f32 = 0.5;
+let glow_colour: vec3<f32> = vec3<f32>(1.0, 0.0, 0.0);
+let glow_intensity: f32 = 1.0;
+let glow_threshold: f32 = 0.5;
+
 @fragment
 fn fs_main(@location(0) tex_coord: vec2<f32>) -> @location(0) vec4<f32> {
-    let sampled_color = textureSample(r_tex_color, r_tex_sampler, tex_coord);
-    let noise_color = vec3<f32>(random_vec2(tex_coord.xy * vec2<f32>(r_locals.time % tau + bias)));
+    var sampled_color = textureSample(r_tex_color, r_tex_sampler, tex_coord);
     
-    var light_color = vec3<f32>(0.0);
+    var light_color = vec3<f32>(1.0);
     for(var i: i32 = 0; i < 32; i++) {
         let light = lights[i];
         if light.intensity <= 0.0 {
             continue;
         };
         var coord = tex_coord;
-        //coord = tex_coord;
         let px = coord.x - light.position.x;
         let py = coord.y - light.position.y;
         let dist = sqrt(pow(px, 2.0) + pow(py, 2.0));
-        //let light_distance = pow(dist, 2.0);
-        let light_dist = vec3<f32>(dist, dist, dist);
-        if i == 1 {
-            //light_color = light.color;
-        };
         let fall = clamp(light.falloff, 0.001, 1.0);
 
         // Linear Blending
         //light_color += light.color * (1.0 - light_dist / fall) * light.intensity;
 
         // Max Blending
-        light_color = max(light_color, light.color * (1.0 - light_dist / fall) * light.intensity);
+        light_color = max(light_color, light.color * (1.0 - dist / fall) * light.intensity);
     };
     return vec4<f32>(sampled_color.rgb * light_color, sampled_color.a);
 }
