@@ -8,7 +8,7 @@ const PAD2: usize = 3;
 const PAD3: usize = 0;
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+//#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct LightUniform {
     pub position: [f32; 2],
     // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here
@@ -35,7 +35,7 @@ impl LightUniform {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+//#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Locals {
     pub time: f32,
     // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here
@@ -81,7 +81,7 @@ impl NoiseRenderer {
         height: u32,
     ) -> Result<Self, TextureError> {
         let device = pixels.device();
-        let shader = wgpu::include_wgsl!("../shaders/noise.wgsl");
+        let shader = wgpu::include_wgsl!("../../../lib/shaders/noise/noise.wgsl");
         let module = device.create_shader_module(shader);
 
         // Create a texture view that will be used as input

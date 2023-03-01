@@ -6,7 +6,7 @@ use std::{time::Duration, borrow::{Cow, BorrowMut}, num::NonZeroU32};
 use egui_wgpu::wgpu::ImageDataLayout;
 use glam::IVec2;
 use log::{error};
-use pixels::{Error, Pixels, SurfaceTexture, wgpu::{ShaderModuleDescriptor, ShaderSource, self, TextureView}};
+use pixels::{Error, Pixels, SurfaceTexture, wgpu::{ShaderModuleDescriptor, ShaderSource, self, TextureView, DeviceDescriptor}, PixelsBuilder};
 use winit::{
     dpi::{LogicalSize, LogicalPosition},
     event::{Event, VirtualKeyCode, WindowEvent},
@@ -15,7 +15,7 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
-use falling_rust::{Matrix, WIDTH, HEIGHT, SCALE, Framework, Assets, UIInfo, matrix::CHUNK_SIZE_VEC, NoiseRenderer, Color};
+use falling_rust::{Matrix, WIDTH, HEIGHT, SCALE, Framework, Assets, UIInfo, matrix::CHUNK_SIZE_VEC, Color};
 
 mod texture;
 use texture::Texture;
@@ -51,7 +51,13 @@ fn main() -> Result<(), Error> {
     let (mut pixels, mut framework) = {
         let scale_factor = window.scale_factor() as f32;
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        let mut pixels = Pixels::new(WIDTH, HEIGHT, surface_texture)?;
+        //let mut pixels = Pixels::new(WIDTH, HEIGHT, surface_texture)?;
+        let mut pixels = PixelsBuilder::new(WIDTH, HEIGHT, surface_texture)
+            .device_descriptor(
+                DeviceDescriptor { label: None, features: wgpu::Features::TIMESTAMP_QUERY | wgpu::Features::SPIRV_SHADER_PASSTHROUGH, limits: wgpu::Limits::default() }
+            )
+            .enable_vsync(true)
+            .build()?;
         pixels.set_clear_color(Color::BLACK);
         let framework = Framework::new(
             &event_loop,
@@ -64,7 +70,6 @@ fn main() -> Result<(), Error> {
     };
 
     let mut time = 0.0;
-    let mut noise_renderer = NoiseRenderer::new(&pixels, window_size.width, window_size.height)?;
     
     let mut ui_info = UIInfo::new();
     let mut assets: Assets = Assets::new();
@@ -76,7 +81,6 @@ fn main() -> Result<(), Error> {
     let start = std::time::SystemTime::now();
     let mut num_frames = 0;
 
-    
     let diffuse_bytes = include_bytes!("../data/sprites/lamp.png");
     let diffuse_texture = texture::Texture::from_bytes(pixels.device(), pixels.queue(), diffuse_bytes, "lamp.png").unwrap();
 
@@ -96,32 +100,13 @@ fn main() -> Result<(), Error> {
 
             // Render everything together
             let render_result = pixels.render_with(|encoder, render_target, context| {
-                let target_copy = wgpu::ImageCopyTextureBase {
-                    texture: &context.texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d{x: 100, y: 100, z: 0},
-                    aspect: wgpu::TextureAspect::All,
-                };
-                let source = diffuse_texture.texture.as_image_copy();
-                encoder.copy_texture_to_texture(source, target_copy, wgpu::Extent3d {
-                    width: 23, height: 57, depth_or_array_layers: 0
-                });
-                noise_renderer.update(&context.queue);
-                noise_renderer.lights[0].position[0] = time % 2.0;
-                let noise_texture = noise_renderer.get_texture_view();
-                noise_renderer.render(encoder, render_target, context.scaling_renderer.clip_rect());
                 // Render the world texture
                 context.scaling_renderer.render(encoder, noise_texture);
-                
-                noise_renderer.locals.time = time;
+
                 time += 0.01;
-                
-                
                 
                 // Render egui
                 framework.render(encoder, render_target, context);
-                
-
                 Ok(())
             });
 
