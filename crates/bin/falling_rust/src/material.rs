@@ -51,7 +51,7 @@ impl Material {
         }
     }
 
-    pub fn get_hp(&self) -> u64 {
+    pub fn get_hp(&self) -> u32 {
         match self {
             Material::Empty => 0,
             Material::Sand => 10,

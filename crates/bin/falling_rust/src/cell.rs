@@ -13,7 +13,7 @@ pub struct Cell {
     pub pos: IVec2,
     prev_pos: IVec2,
     pub velocity: Vec2,
-    pub hp: u64,
+    pub hp: u32,
     pub base_color: Color,
     pub color: Color,
     pub material: Material,

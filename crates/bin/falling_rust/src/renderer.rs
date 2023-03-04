@@ -8,7 +8,7 @@ const PAD2: usize = 3;
 const PAD3: usize = 0;
 
 #[repr(C)]
-//#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct LightUniform {
     pub position: [f32; 2],
     // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here
@@ -35,7 +35,7 @@ impl LightUniform {
 }
 
 #[repr(C)]
-//#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Locals {
     pub time: f32,
     // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here
@@ -81,7 +81,7 @@ impl NoiseRenderer {
         height: u32,
     ) -> Result<Self, TextureError> {
         let device = pixels.device();
-        let shader = wgpu::include_wgsl!("../../../lib/shaders/noise/noise.wgsl");
+        let shader = wgpu::include_wgsl!("../../../lib/shaders/gen/simulation_gen.wgsl");
         let module = device.create_shader_module(shader);
 
         // Create a texture view that will be used as input
@@ -128,31 +128,14 @@ impl NoiseRenderer {
             }],
         };
 
-        let locals = Locals::new();
-        // Create uniform buffer
-        let locals_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("NoiseRenderer Locals"),
-            contents: bytemuck::cast_slice(&[locals]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+        // let locals = Locals::new();
+        // // Create uniform buffer
+        // let locals_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        //     label: Some("NoiseRenderer Locals"),
+        //     contents: bytemuck::cast_slice(&[locals]),
+        //     usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        // });
 
-        let mut lights = [LightUniform::new(); 32];
-        lights[0].position = [0.5, 0.5];
-        lights[0].color = [1.0, 1.0, 1.0];
-        lights[0].intensity = 0.5;
-        lights[0].falloff = 0.5;
-        
-        lights[1].position = [0.5, 0.5];
-        lights[1].color = [1.0, 0.0, 0.0];
-        lights[1].intensity = 5.0;
-        lights[1].falloff = 0.2;
-
-        // Create uniform buffer
-        let light_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("NoiseRenderer lights"),
-            contents: bytemuck::cast_slice(&lights),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
 
         // Create bind group
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -162,7 +145,7 @@ impl NoiseRenderer {
                     binding: 0,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        sample_type: wgpu::TextureSampleType::Sint,
                         multisampled: false,
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
@@ -177,20 +160,10 @@ impl NoiseRenderer {
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
                 },
@@ -201,8 +174,6 @@ impl NoiseRenderer {
             &bind_group_layout,
             &texture_view,
             &sampler,
-            &locals_buffer,
-            &light_buffer,
         );
 
         // Create pipeline
