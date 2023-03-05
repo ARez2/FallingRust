@@ -3,7 +3,7 @@ use egui::{ClippedPrimitive, Context, TexturesDelta, TextureHandle, ColorImage, 
 use egui_wgpu::renderer::{Renderer, ScreenDescriptor};
 use strum::IntoEnumIterator;
 
-use crate::{Material, Matrix, Assets, UIInfo};
+use crate::{Material, Matrix, Assets, UIInfo, ASSETS};
 
 use pixels::{wgpu, PixelsContext};
 use winit::event_loop::EventLoopWindowTarget;
@@ -78,13 +78,13 @@ impl Framework {
     }
 
     /// Prepare egui.
-    pub fn prepare(&mut self, window: &Window, matrix: &mut Matrix, assets: &mut Assets, ui_info: &mut UIInfo) {
+    pub fn prepare(&mut self, window: &Window, matrix: &mut Matrix, ui_info: &mut UIInfo) {
         // Run the egui frame and create all paint jobs to prepare for rendering.
         let raw_input = self.egui_state.take_egui_input(window);
 
         let output = self.egui_ctx.run(raw_input, |egui_ctx| {
             // Draw the demo application.
-            self.gui.ui(egui_ctx, matrix, assets, ui_info);
+            self.gui.ui(egui_ctx, matrix, ui_info);
         });
 
         self.textures.append(output.textures_delta);
@@ -159,7 +159,7 @@ impl Gui {
         }
     }
 
-    fn ui(&mut self, ctx: &Context, matrix: &mut Matrix, assets: &mut Assets, ui_info: &mut UIInfo) {
+    fn ui(&mut self, ctx: &Context, matrix: &mut Matrix, ui_info: &mut UIInfo) {
         egui::TopBottomPanel::top("menubar_container").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.separator();
@@ -190,7 +190,7 @@ impl Gui {
         .show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
                 if self.material_textures.len() != Material::iter().count() {
-                    for mat in assets.loaded_material_textures.iter() {
+                    for mat in unsafe{(*ASSETS).loaded_material_textures.iter()} {
                         let texture = mat.1;
                         let (w, h) = (texture.width as usize, texture.height as usize);
                         let matname = format!("{:?}", mat);

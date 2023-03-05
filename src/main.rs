@@ -1,12 +1,11 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-use std::{time::Duration, borrow::{Cow, BorrowMut}, num::NonZeroU32};
+use std::{time::Duration};
 
-use egui_wgpu::wgpu::ImageDataLayout;
 use glam::IVec2;
 use log::{error};
-use pixels::{Error, Pixels, SurfaceTexture, wgpu::{ShaderModuleDescriptor, ShaderSource, self, TextureView}};
+use pixels::{Error, Pixels, SurfaceTexture, wgpu};
 use winit::{
     dpi::{LogicalSize, LogicalPosition},
     event::{Event, VirtualKeyCode, WindowEvent},
@@ -15,7 +14,7 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
-use falling_rust::{Matrix, WIDTH, HEIGHT, SCALE, Framework, Assets, UIInfo, matrix::CHUNK_SIZE_VEC, NoiseRenderer, Color};
+use falling_rust::{Matrix, WIDTH, HEIGHT, SCALE, Framework, UIInfo, matrix::CHUNK_SIZE_VEC, NoiseRenderer, Color};
 
 mod texture;
 use texture::Texture;
@@ -65,9 +64,8 @@ fn main() -> Result<(), Error> {
 
     let mut time = 0.0;
     let mut noise_renderer = NoiseRenderer::new(&pixels, window_size.width, window_size.height)?;
-    
+
     let mut ui_info = UIInfo::new();
-    let mut assets: Assets = Assets::new();
     let mut matrix = Matrix::new_empty(WIDTH as usize, HEIGHT as usize);
     let mut paused = false;
 
@@ -75,7 +73,6 @@ fn main() -> Result<(), Error> {
     let mut frame_time = last_update;
     let start = std::time::SystemTime::now();
     let mut num_frames = 0;
-
     
     let diffuse_bytes = include_bytes!("../data/sprites/lamp.png");
     let diffuse_texture = texture::Texture::from_bytes(pixels.device(), pixels.queue(), diffuse_bytes, "lamp.png").unwrap();
@@ -92,7 +89,7 @@ fn main() -> Result<(), Error> {
             matrix.draw(pixels.get_frame_mut());
 
             // Prepare egui
-            framework.prepare(&window, &mut matrix, &mut assets, &mut ui_info);
+            framework.prepare(&window, &mut matrix, &mut ui_info);
 
             // Render everything together
             let render_result = pixels.render_with(|encoder, render_target, context| {
@@ -116,12 +113,8 @@ fn main() -> Result<(), Error> {
                 noise_renderer.locals.time = time;
                 time += 0.01;
                 
-                
-                
                 // Render egui
                 framework.render(encoder, render_target, context);
-                
-
                 Ok(())
             });
 
@@ -204,7 +197,7 @@ fn main() -> Result<(), Error> {
                 let pos = IVec2::new(mouse_cell.0 as i32, mouse_cell.1 as i32);
                 let cp = pos / CHUNK_SIZE_VEC;
                 println!("Mouse click at {:?}, In bounds: {}, Chunk: {}, Chunk in bounds: {}", mouse_cell, matrix.is_in_bounds(pos), cp, matrix.chunk_in_bounds(cp));
-                matrix.draw_brush(pos, matrix.brush.get_material_from_index(), &mut assets);
+                matrix.draw_brush(pos, matrix.brush.get_material_from_index());
             } else {
                 let release = input.mouse_released(0);
                 let held = input.mouse_held(0);
@@ -216,8 +209,7 @@ fn main() -> Result<(), Error> {
                         mouse_prev_cell.1,
                         mouse_cell.0,
                         mouse_cell.1,
-                        matrix.brush.get_material_from_index(),
-                        &mut assets
+                        matrix.brush.get_material_from_index()
                     );
                 }
                 // If they let go or are otherwise not clicking anymore, stop drawing.
@@ -245,7 +237,7 @@ fn main() -> Result<(), Error> {
             }
             if (!paused || input.key_pressed_os(VirtualKeyCode::Space)) && should_update
             {
-                matrix.update(&mut assets);
+                matrix.update();
                 last_update = std::time::SystemTime::now();
                 num_frames += 1;
             };

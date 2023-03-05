@@ -1,14 +1,14 @@
 
 pub mod cell_handler {
     use glam::{IVec2, Vec2};
-    use rand::{Rng, seq::SliceRandom};
+    use rand::{seq::SliceRandom};
 
-    use crate::{Matrix, MaterialType, rand_multiplier, Material, Assets, Cell};
+    use crate::{Matrix, MaterialType, rand_multiplier, Material, Assets, Cell, Rng, gen_range, RNG};
 
     /// Function which gets called for all the cells.
     /// 
     /// Calls the respective methods depending on the cell material
-    pub fn handle_cell(matrix: &mut Matrix, cell_index: usize, assets: &mut Assets) {
+    pub fn handle_cell(matrix: &mut Matrix, cell_index: usize) {
         let cell = matrix.get_cell_by_cellindex_mut(cell_index);
         if cell.is_none() {
             return;
@@ -22,12 +22,12 @@ pub mod cell_handler {
         
         // This cell died; delete it
         if hp == 0 {
-            matrix.set_cell_material(cellpos, Material::Empty, false, assets);
+            matrix.set_cell_material(cellpos, Material::Empty, false);
             return;
         };
 
         if was_on_fire && on_fire {
-            fire_step(matrix, cell_index, assets);
+            fire_step(matrix, cell_index);
         };
 
         let _ = match cellmat.get_type() {
@@ -61,10 +61,9 @@ pub mod cell_handler {
                         if p.abs() == IVec2::ONE && p == IVec2::ZERO {
                             continue;
                         };
-                        let r = matrix.rng.clone();
                         let neighbour = matrix.get_cell_mut(cellpos + p);
                         if let Some(n_cell) = neighbour {
-                            n_cell.attempt_free_fall(r);
+                            n_cell.attempt_free_fall();
                         };
                     }
                 }
@@ -77,7 +76,7 @@ pub mod cell_handler {
             return true;
         };
 
-        let rand_bool = matrix.rng.gen_bool(0.5);
+        let rand_bool = gen_range(0.0, 1.0) > 0.5;
         let cell = matrix.get_cell_by_cellindex_mut(cell_index).unwrap();
         if !cell.is_free_falling {
             cell.velocity = Vec2::ZERO;
@@ -129,7 +128,7 @@ pub mod cell_handler {
         let up_right = cellpos + IVec2::new(disp, -1);
         let mut first = up_left;
         let mut second = up_right;
-        if matrix.rng.gen_bool(0.5) {
+        if gen_range(0.0, 1.0) > 0.5 {
             first = up_right;
             second = up_left
         };
@@ -154,7 +153,7 @@ pub mod cell_handler {
         let disp = cellmat.get_dispersion() as i32;
         let dir = rand_multiplier();
         
-        let horizontal_movement = cellpos + IVec2::new(disp * dir, 0);
+        let horizontal_movement = cellpos + IVec2::new(disp * dir, cell.velocity.y.round() as i32);
         if try_move(matrix, cell_index, horizontal_movement, false) {
             return true;
         };
@@ -163,20 +162,14 @@ pub mod cell_handler {
 
     /// Tries to move the cell to the specified position. Stops when it encounters an obstacle
     fn try_move(matrix: &mut Matrix, cell_index: usize, to_pos: IVec2, diagonal: bool) -> bool {
-        //to_pos = matrix.clamp_pos(to_pos);
         let mut last_possible_cell: Option<_> = None;
         
         let width = matrix.width as i32;
         let height = matrix.height as i32;
         
-        let (cellpos, cellmat) = {
-            let cell = matrix.get_cell_by_cellindex_mut(cell_index);
-            if cell.is_none() {
-                return false;
-            };
-            let cell = cell.unwrap();
-            (cell.pos, cell.material)
-        };
+        let (cellpos, cellmat) = matrix.get_cell_by_cellindex_mut(cell_index)
+            .and_then(|cell| Some((cell.pos, cell.material)))
+            .unwrap_or((IVec2::new(0, 0), Material::Empty));
         if cellpos == to_pos {
             return false;
         };
@@ -184,7 +177,10 @@ pub mod cell_handler {
         let x0 = cellpos.x.clamp(0, width);
         let y0 = cellpos.y.clamp(0, height);
         let mut num_steps = 0;
-        for (x, y) in line_drawing::WalkGrid::new((x0, y0), (to_pos.x, to_pos.y)) {
+
+        let iter = line_drawing::WalkGrid::new((x0, y0), (to_pos.x.clamp(0, width), to_pos.y.clamp(0, height)));
+
+        for (x, y) in iter {
             let cur_pos = IVec2::new(x, y);
             if cur_pos == cellpos {
                 continue;
@@ -194,7 +190,6 @@ pub mod cell_handler {
                 if num_steps > 1 {
                     break;
                 };
-
                 let tcell_mat = tcell.material;
                 if tcell_mat == cellmat && !diagonal {
                     break;
@@ -210,37 +205,37 @@ pub mod cell_handler {
                     last_possible_cell = Some(cur_pos);
                 };
             };
-
             num_steps += 1;
         };
 
-        match last_possible_cell {
-            None => (),
-            Some(last_pos) => {
-                if last_pos != IVec2::new(x0, y0) {
-                    matrix.set_cell_by_pos(last_pos, cellpos, true);
-                    return true;
-                }
-            },
+        if let Some(last_pos) = last_possible_cell {
+            if last_pos != IVec2::new(x0, y0) {
+                matrix.set_cell_by_pos(last_pos, cellpos, true);
+                return true;
+            }
         }
 
         false
     }
 
     /// Handles fire logic
-    fn fire_step(matrix: &mut Matrix, cell_index: usize, assets: &mut Assets) -> bool {
+    fn fire_step(matrix: &mut Matrix, cell_index: usize) -> bool {
         let cell = matrix.get_cell_by_cellindex_mut(cell_index).unwrap();
         cell.hp = cell.hp.saturating_sub(1);
+        if cell.hp == 0 {
+            return false;
+        };
+        
         let cellpos = cell.pos;
         let mut spread = vec![];
         let radius = 2;
         let num_neighbors = 8*radius;
-        let mut rand_probs = vec![];
-        for _ in 0..num_neighbors {
-            rand_probs.push(matrix.rng.gen_range(0.0..=1.0));
-        };
+        let mut rand_probs: Vec<f32> = vec![0.0; num_neighbors];
+        for i in 0..num_neighbors {
+            rand_probs[i] = gen_range(0.0, 1.0);
+        }
         let mut indices: Vec<usize> = (0..num_neighbors).collect();
-        indices.shuffle(&mut matrix.rng);
+        indices.shuffle(unsafe {&mut *RNG});
 
         let neighbors = matrix.get_neighbor_cells(cellpos, radius as i32);
         let neighbor_cells: Vec<&Cell> = neighbors.into_iter().flatten().collect();
@@ -283,7 +278,7 @@ pub mod cell_handler {
             if let Some(ext) = ext {
                 ext.hp = (ext.hp as f32 * extinguisher.1).round() as u64;
                 if ext.material.get_type() == MaterialType::Liquid {
-                    matrix.set_cell_material(cellpos + IVec2::new(0, -1), Material::Smoke, false, assets);
+                    matrix.set_cell_material(cellpos + IVec2::new(0, -1), Material::Smoke, false);
                 };
             };
             let cell = matrix.get_cell_by_cellindex_mut(cell_index).unwrap();

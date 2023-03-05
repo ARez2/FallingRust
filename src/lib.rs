@@ -10,8 +10,9 @@ pub use material::{Material, MaterialType};
 pub mod reaction;
 
 
-pub mod assets;
-pub use assets::Assets;
+mod assets;
+use assets::Assets;
+pub static mut ASSETS: Lazy<Assets> = Lazy::new(|| Assets::new());
 
 pub mod gui;
 pub use gui::Framework;
@@ -23,9 +24,11 @@ pub use matrix::Matrix;
 pub mod chunk;
 pub use chunk::Chunk;
 
+use once_cell::sync::Lazy;
 pub use pixels::wgpu::Color;
 
 pub mod renderer;
+use rand::RngCore;
 pub use renderer::NoiseRenderer;
 
 pub const CHUNK_SIZE: usize = 32;
@@ -36,6 +39,18 @@ pub const SCALE: f64 = 2.0;
 
 pub const COLOR_EMPTY: Color = Color { r: 1.0, g: 0.0, b: 0.8, a: 1.0 };
 
+pub type Rng = rand::rngs::StdRng;
+const SEED: u64 = 1234;
+pub static mut RNG: Lazy<Rng> = Lazy::new(|| rand::SeedableRng::seed_from_u64(rand::thread_rng().next_u64()));
+pub fn gen_range(min: f32, max: f32) -> f32 {
+    let random = unsafe {
+        (*RNG).next_u32()
+    } as f32;
+    return min + (random / std::u32::MAX as f32) * (max - min);
+}
+
+
+//pub type RngThr<'a> = std::sync::Arc<std::sync::Mutex<&'a mut rand::rngs::ThreadRng>>;
 
 pub struct UIInfo {
     pub num_frames: f32,

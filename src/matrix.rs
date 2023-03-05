@@ -1,6 +1,7 @@
+use std::sync::{RwLock, Arc, Mutex};
+
 use glam::{IVec2};
-use rand::{rngs::ThreadRng, seq::SliceRandom};
-use crate::{Color, WIDTH, HEIGHT};
+use crate::{Color, WIDTH, HEIGHT, Rng, ASSETS};
 use rayon::prelude::*;
 
 use crate::{Cell, Assets, Material, Chunk, cell_handler, CHUNK_SIZE, brush::Brush};
@@ -8,7 +9,6 @@ const CHUNK_SIZE_I32: i32 = CHUNK_SIZE as i32;
 pub const CHUNK_SIZE_VEC: IVec2 = IVec2::new(CHUNK_SIZE_I32, CHUNK_SIZE_I32);
 const NUM_CHUNKS_X: usize = (WIDTH / CHUNK_SIZE as u32) as usize;
 const NUM_CHUNKS_Y: usize = (HEIGHT / CHUNK_SIZE as u32) as usize;
-
 
 pub struct Matrix {
     pub width: usize,
@@ -24,8 +24,9 @@ pub struct Matrix {
     pub update_left: bool,
     pub brush: Brush,
     pub wait_time_after_frame: f32,
-    pub rng: ThreadRng,
 }
+
+unsafe impl Send for Matrix {}
 
 impl Matrix {
     pub fn new_empty(width: usize, height: usize) -> Self {
@@ -58,7 +59,6 @@ impl Matrix {
             brush: Brush::new(),
             update_left: true,
             wait_time_after_frame: 0.0,
-            rng: rand::thread_rng(),
         }
     }
 
@@ -182,8 +182,8 @@ impl Matrix {
     }
 
     /// Appends the cell to self.cells and updates self.data with its index
-    pub fn add_cell_to_cells(&mut self, mut cell: Cell, assets: &mut Assets) {
-        cell.set_color(assets.get_color_for_material(cell.pos, cell.material));
+    pub fn add_cell_to_cells(&mut self, mut cell: Cell) {
+        cell.set_color(unsafe {ASSETS.get_color_for_material(cell.pos, cell.material)});
 
         let cell_at_pos = self.get_data_at_pos(cell.pos);
         // If there is already a cell at that position, replace that cell in self.cells with the new cell
@@ -219,14 +219,14 @@ impl Matrix {
     }
 
     /// Places a cell at specified pos with the material given
-    pub fn set_cell_material(&mut self, mut pos: IVec2, material: Material, swap: bool, assets: &mut Assets) {
+    pub fn set_cell_material(&mut self, mut pos: IVec2, material: Material, swap: bool) {
         if material == Material::Empty {
             self.remove_cell_from_cells(pos);
             return;
         };
         pos = self.clamp_pos(pos);
         let cell = Cell::new(pos, material);
-        self.add_cell_to_cells(cell, assets);
+        self.add_cell_to_cells(cell);
         self.set_cell_by_pos(pos, pos, swap);
     }
 
@@ -291,10 +291,10 @@ impl Matrix {
     }
 
     /// Places cells in the specified brush size
-    pub fn draw_brush(&mut self, pos: IVec2, material: Material, assets: &mut Assets) {
+    pub fn draw_brush(&mut self, pos: IVec2, material: Material) {
         let bs = self.brush.size as i32;
         if bs == 1 && !self.brush.place_fire {
-            self.set_cell_material(pos, material, false, assets);
+            self.set_cell_material(pos, material, false);
             return;
         };
         let bs_2 = bs as f32 / 2.0;
@@ -311,14 +311,14 @@ impl Matrix {
                         self.set_chunk_active(cur_pos);
                     };
                 } else {
-                    self.set_cell_material(cur_pos, material, false, assets);
+                    self.set_cell_material(cur_pos, material, false);
                 };
             };
         };
     }
 
     /// New frame. Update the matrix (includes cells and chunks)
-    pub fn update(&mut self, assets: &mut Assets) {
+    pub fn update(&mut self) {
         // Tells all chunks that a new frame has begun
         self.chunks.par_iter_mut().for_each(|chunk| {
             chunk.start_step();
@@ -334,23 +334,27 @@ impl Matrix {
             cell.post_update();
         });
 
+
         // Iterate all cells from the bottom up and either from left to right or the other way around
+        
+        let x_range: Vec<i32> = if self.update_left {
+            (0..w).collect()
+        } else {
+            (0..w).rev().collect()
+        };
+
         for y in (0..h).rev() {
-            if self.update_left {
-                for x in (0..w).rev() {
-                    self.step_all(x, y, assets);
-                }
-            } else {
-                for x in 0..w {
-                    self.step_all(x, y, assets);
-                }
+            for x in &x_range {
+            //x_range.par_iter().for_each(|x| {
+                self.step_all(*x, y);
+            //});
             };
         };
         self.update_left = !self.update_left;
     }
 
     /// Helper function to always execute the same logic regardless of wether iterating from the left or right side of the window
-    fn step_all(&mut self, x: i32, y: i32, assets: &mut Assets) {
+    fn step_all(&mut self, x: i32, y: i32) {
         let cur_pos = IVec2::new(x, y);
         
         let chunk_pos = cur_pos / CHUNK_SIZE_VEC;
@@ -365,30 +369,33 @@ impl Matrix {
             if cell_idx == 0 {
                 return;
             };
-            let cell = self.get_cell_by_cellindex_mut(cell_idx).unwrap();
-            if !cell.processed_this_frame {
-                let hp = cell.hp;
-                cell.update();
-                cell.processed_this_frame = true;
-                if cell.hp != hp || cell.is_on_fire || cell.was_on_fire_last_frame {
-                    self.set_chunk_cluster_active(cur_pos);
+            if let Some(cell) = self.get_cell_by_cellindex_mut(cell_idx) {
+                if !cell.processed_this_frame {
+                    let hp = cell.hp;
+                    cell.update();
+                    cell.processed_this_frame = true;
+                    if cell.hp != hp || cell.is_on_fire || cell.was_on_fire_last_frame {
+                        self.set_chunk_cluster_active(cur_pos);
+                    };
+                    cell_handler::handle_cell(self, cell_idx);
                 };
-                cell_handler::handle_cell(self, cell_idx, assets);
             };
         };
     }
 
+
     /// Renders all the cells into the pixel buffer
     pub fn draw(&self, screen: &mut [u8]) {
         //debug_assert_eq!(screen.len(), 4 * self.cells.len());
-        //screen.fill(0);
 
         // Faster solution for filling the array
         unsafe {
             std::ptr::write_bytes(screen.as_mut_ptr(), 0, screen.len());
         };
 
-        for c in self.cells.iter() {
+        let sc = RwLock::new(screen);
+
+        self.cells.par_iter().for_each(|c| {
             let mut draw_color = c.color;
             
             let chunk_pos = c.pos / CHUNK_SIZE_VEC;
@@ -398,28 +405,24 @@ impl Matrix {
                     draw_color = Color::RED;
                 };
             };
-
-            // let chunk = self.get_chunk_for_pos(c.pos);
-            // if let Some(chunk) = chunk {
-            // };
-            
+    
             let idx = self.cell_idx(c.pos) * 4;
-            let pixel_color = &mut screen[idx..idx+4];
+            let pixel_color = &mut sc.write().unwrap()[idx..idx+4];
             let color = [(draw_color.r * 255.0) as u8, (draw_color.g * 255.0) as u8, (draw_color.b * 255.0) as u8, (draw_color.a * 255.0) as u8];
             if pixel_color != color {
                 pixel_color.copy_from_slice(&color);
             };
-        }
+        });
     }
 
     /// Draws a line with the specified material
-    pub fn set_line(&mut self, x0: isize, y0: isize, x1: isize, y1: isize, material: Material, assets: &mut Assets) {
+    pub fn set_line(&mut self, x0: isize, y0: isize, x1: isize, y1: isize, material: Material) {
         let x0 = x0.clamp(0, self.width as isize);
         let y0 = y0.clamp(0, self.height as isize);
         for (x, y) in line_drawing::Bresenham::new((x0, y0), (x1, y1)) {
             let pos = IVec2::new(x as i32, y as i32);
             if self.is_in_bounds(pos) {
-                self.draw_brush(pos, material, assets);
+                self.draw_brush(pos, material);
             } else {
                 break;
             }

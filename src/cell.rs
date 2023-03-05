@@ -1,11 +1,9 @@
 use std::{fmt::Display};
 
-use crate::{Color, darken_color};
+use crate::{Color, darken_color, gen_range};
 use glam::{IVec2, Vec2};
-use rand::{rngs::ThreadRng, Rng};
 
-use crate::{Material, MaterialType, rand_multiplier};
-
+use crate::{Material, MaterialType, rand_multiplier, Rng};
 
 
 #[derive(Clone, PartialEq)]
@@ -61,10 +59,10 @@ impl Cell {
     }
 
     /// Tries to set a neighbouring cells "is_free_falling" to true based on inertia and that cells intertial resistance
-    pub fn attempt_free_fall(&mut self, mut rng: ThreadRng) {
+    pub fn attempt_free_fall(&mut self) {
         if self.material.get_type() == MaterialType::MovableSolid {
             let chance = self.material.get_intertial_resistance();
-            let rng = rng.gen_range(0.0..=1.0);
+            let rng = gen_range(0.0, 1.0);
             if rng > chance {
                 self.is_free_falling = true;
             };
