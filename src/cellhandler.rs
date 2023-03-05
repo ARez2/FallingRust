@@ -1,24 +1,33 @@
 
 pub mod cell_handler {
     use glam::{IVec2, Vec2};
-    use rand::{seq::SliceRandom};
+    use fastrand::shuffle;
 
     use crate::{Matrix, MaterialType, rand_multiplier, Material, Assets, Cell, Rng, gen_range, RNG};
 
     /// Function which gets called for all the cells.
     /// 
     /// Calls the respective methods depending on the cell material
-    pub fn handle_cell(matrix: &mut Matrix, cell_index: usize) {
+    pub fn handle_cell(matrix: &mut Matrix, cell_index: usize, chunk_index: usize) {
+        // if !matrix.chunks[chunk_index].should_step {
+        //     return;
+        // };
+
         let cell = matrix.get_cell_by_cellindex_mut(cell_index);
         if cell.is_none() {
             return;
         };
-        let cell = cell.unwrap();
-        let cellpos = cell.pos;
-        let hp = cell.hp;
-        let on_fire = cell.is_on_fire;
-        let was_on_fire = cell.was_on_fire_last_frame;
-        let cellmat = cell.material;
+        let (cellpos, hp, on_fire, was_on_fire, cellmat, hp_changed, cellvelocity) = {
+            let cell = cell.unwrap();
+            let hp = cell.hp;
+            let cellvel = cell.velocity;
+            cell.update();
+            cell.processed_this_frame = true;
+            (cell.pos, cell.hp, cell.is_on_fire, cell.was_on_fire_last_frame, cell.material, hp != cell.hp, cellvel)
+        };
+        // if on_fire || was_on_fire || hp_changed || cellvelocity.length() > 0.0 {
+        //     matrix.set_chunk_active(cellpos);
+        // };
         
         // This cell died; delete it
         if hp == 0 {
@@ -47,13 +56,12 @@ pub mod cell_handler {
             if cell.is_none() {
                 return false;
             };
-            let (freefall, cellpos) = {
+            let (freefall, cellp) = {
                 let cell = cell.unwrap();
                 bottom = cell.pos + IVec2::new(0, cell.velocity.y.round() as i32);
                 is_movable_solid = cell.material.get_type() == MaterialType::MovableSolid;
                 (cell.is_free_falling, cell.pos)
             };
-            
             if freefall {
                 for y in -1..=1 {
                     for x in -1..=1 {
@@ -61,13 +69,14 @@ pub mod cell_handler {
                         if p.abs() == IVec2::ONE && p == IVec2::ZERO {
                             continue;
                         };
-                        let neighbour = matrix.get_cell_mut(cellpos + p);
+                        let neighbour = matrix.get_cell_mut(cellp + p);
                         if let Some(n_cell) = neighbour {
                             n_cell.attempt_free_fall();
                         };
                     }
                 }
             };
+            
         };
         
         if try_move(matrix, cell_index, bottom, false) {
@@ -82,6 +91,7 @@ pub mod cell_handler {
             cell.velocity = Vec2::ZERO;
             return false;
         };
+        
         let mut fac = 1.0;
         if cell.velocity.x < 0.0 || rand_bool {
             fac = -1.0;
@@ -98,6 +108,7 @@ pub mod cell_handler {
         let x_vel_check = cell.velocity.x.round().abs().max(1.0) as i32;
         let disp = cell.material.get_dispersion() as i32;
         let cellpos = cell.pos;
+        matrix.set_chunk_active(cellpos);
         let bottom_left = cellpos + IVec2::new(-disp * x_vel_check, 1);
         let bottom_right = cellpos + IVec2::new(disp * x_vel_check, 1);
         let mut first = bottom_left;
@@ -225,7 +236,7 @@ pub mod cell_handler {
         if cell.hp == 0 {
             return false;
         };
-        
+
         let cellpos = cell.pos;
         let mut spread = vec![];
         let radius = 2;
@@ -235,7 +246,7 @@ pub mod cell_handler {
             rand_probs[i] = gen_range(0.0, 1.0);
         }
         let mut indices: Vec<usize> = (0..num_neighbors).collect();
-        indices.shuffle(unsafe {&mut *RNG});
+        unsafe {&mut *RNG}.shuffle(&mut indices);
 
         let neighbors = matrix.get_neighbor_cells(cellpos, radius as i32);
         let neighbor_cells: Vec<&Cell> = neighbors.into_iter().flatten().collect();
@@ -290,6 +301,7 @@ pub mod cell_handler {
         for spread_cell_pos in spread {
             if let Some(spread_cell) = matrix.get_cell_mut(spread_cell_pos) {
                 spread_cell.is_on_fire = true;
+                matrix.set_chunk_active(spread_cell_pos);
             };
         };
 

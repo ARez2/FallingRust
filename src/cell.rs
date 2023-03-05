@@ -8,18 +8,19 @@ use crate::{Material, MaterialType, rand_multiplier, Rng};
 
 #[derive(Clone, PartialEq)]
 pub struct Cell {
-    pub pos: IVec2,
-    prev_pos: IVec2,
-    pub velocity: Vec2,
-    pub hp: u64,
-    pub base_color: Color,
-    pub color: Color,
-    pub material: Material,
+    pub pos: IVec2,//2xi32
+    prev_pos: IVec2,//2xi32
+    pub velocity: Vec2,//2xf32
+    pub hp: u64,//u32
+    pub base_color: Color,//3xu8
+    pub color: Color,//3xu8
+    pub material: Material,//u8
     pub processed_this_frame: bool,
     pub is_free_falling: bool,
     pub is_on_fire: bool,
     pub was_on_fire_last_frame: bool,
 }
+// = 284 bits = 4,4 u64's
 
 impl Cell {
     /// Creates a new cell with the specified material

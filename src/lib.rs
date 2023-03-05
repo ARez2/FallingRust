@@ -28,7 +28,6 @@ use once_cell::sync::Lazy;
 pub use pixels::wgpu::Color;
 
 pub mod renderer;
-use rand::RngCore;
 pub use renderer::NoiseRenderer;
 
 pub const CHUNK_SIZE: usize = 32;
@@ -39,14 +38,11 @@ pub const SCALE: f64 = 2.0;
 
 pub const COLOR_EMPTY: Color = Color { r: 1.0, g: 0.0, b: 0.8, a: 1.0 };
 
-pub type Rng = rand::rngs::StdRng;
+pub type Rng = fastrand::Rng;
 const SEED: u64 = 1234;
-pub static mut RNG: Lazy<Rng> = Lazy::new(|| rand::SeedableRng::seed_from_u64(rand::thread_rng().next_u64()));
+pub static mut RNG: Lazy<Rng> = Lazy::new(|| fastrand::Rng::with_seed(fastrand::u64(0..100)));
 pub fn gen_range(min: f32, max: f32) -> f32 {
-    let random = unsafe {
-        (*RNG).next_u32()
-    } as f32;
-    return min + (random / std::u32::MAX as f32) * (max - min);
+    return min + unsafe{&mut RNG}.f32() * max;
 }
 
 
@@ -69,12 +65,10 @@ impl Default for UIInfo {
 }
 
 
+const MULTIPLIER_OPTIONS: [i32; 2] = [-1, 1];
 /// Returns 1 or -1 at random
 pub fn rand_multiplier() -> i32 {
-    match rand::random::<bool>() {
-        true => 1,
-        false => -1,
-    }
+    MULTIPLIER_OPTIONS[unsafe{&mut *RNG}.usize(0..MULTIPLIER_OPTIONS.len())]
 }
 
 pub fn darken_color(mut color: Color, amount: f64) -> Color {

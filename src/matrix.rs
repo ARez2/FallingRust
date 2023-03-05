@@ -336,7 +336,20 @@ impl Matrix {
 
 
         // Iterate all cells from the bottom up and either from left to right or the other way around
-        
+        // let cell_indices: Vec<(usize, usize)> = self.cells.par_iter()
+        //     .enumerate()
+        //     .map(|(i, c)| {
+        //         let p = c.pos / CHUNK_SIZE_VEC;
+        //         let ch_i = p.x as usize + p.y as usize * NUM_CHUNKS_X;
+        //         (i, ch_i)
+        //     })
+        //     .collect();
+        // cell_indices.iter().for_each(|i| {
+        //     let i = *i;
+        //     cell_handler::handle_cell(self, i.0, i.1);
+        // });
+
+
         let x_range: Vec<i32> = if self.update_left {
             (0..w).collect()
         } else {
@@ -361,7 +374,8 @@ impl Matrix {
         if !self.chunk_in_bounds(chunk_pos) {
             return;
         };
-        let cur_chunk = &self.chunks[chunk_pos.x as usize + chunk_pos.y as usize * NUM_CHUNKS_X];
+        let chunk_index = chunk_pos.x as usize + chunk_pos.y as usize * NUM_CHUNKS_X;
+        let cur_chunk = &self.chunks[chunk_index];
         
         // If the chunk should process, update the cell
         if cur_chunk.should_step {
@@ -377,7 +391,7 @@ impl Matrix {
                     if cell.hp != hp || cell.is_on_fire || cell.was_on_fire_last_frame {
                         self.set_chunk_cluster_active(cur_pos);
                     };
-                    cell_handler::handle_cell(self, cell_idx);
+                    cell_handler::handle_cell(self, cell_idx, chunk_index);
                 };
             };
         };

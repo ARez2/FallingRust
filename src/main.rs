@@ -84,7 +84,7 @@ fn main() -> Result<(), Error> {
         let frame_delta = current_time.duration_since(frame_time).unwrap();
         let update_delta = current_time.duration_since(last_update).unwrap();
         let should_update = matrix.wait_time_after_frame <= 0.0 || (update_delta >= Duration::from_millis(matrix.wait_time_after_frame as u64));
-        ui_info.num_frames = num_frames as f32 / current_time.duration_since(start).unwrap().as_secs_f32();
+        ui_info.num_frames = frame_delta.as_secs_f32() / 60.0;
         if let Event::RedrawRequested(_) = event {
             matrix.draw(pixels.get_frame_mut());
 
@@ -223,12 +223,12 @@ fn main() -> Result<(), Error> {
                     error!("pixels.resize_surface() failed: {err}");
                     *control_flow = ControlFlow::Exit;
                     return;
-                }
+                };
                 if let Err(err) = noise_renderer.resize(&pixels, size.width, size.height) {
                     error!("noise_renderer.resize() failed: {err}");
                     *control_flow = ControlFlow::Exit;
                     return;
-                }
+                };
                 framework.resize(size.width, size.height);
             }
             // Update the scale factor
