@@ -1,7 +1,7 @@
-use std::sync::{RwLock, Arc, Mutex};
+use std::{sync::{RwLock, Arc, Mutex}, ops::Deref};
 
 use glam::{IVec2};
-use crate::{Color, WIDTH, HEIGHT, Rng, ASSETS};
+use crate::{Color, WIDTH, HEIGHT, Rng, ASSETS, EMPTY, WALL};
 use rayon::prelude::*;
 
 use crate::{Cell, Assets, Material, Chunk, cell_handler, CHUNK_SIZE, brush::Brush};
@@ -95,90 +95,75 @@ impl Matrix {
 
     /// Converts the position into an index to be used in self.data
     fn cell_idx(&self, mut pos: IVec2) -> usize {
-        pos = self.clamp_pos(pos);
+        //pos = self.clamp_pos(pos);
         (pos.x + pos.y * self.width as i32) as usize
     }
 
     /// Gets the index of the cell in self.cells at that position
     pub fn get_data_at_pos(&self, pos: IVec2) -> usize {
         let idx = self.cell_idx(pos);
+        if idx >= self.data.len() {
+            return 0;
+        };
         self.data[idx]
     }
 
     /// Returns a reference to the cell at cell_index (which is written in self.data)
-    fn get_cell_from_cells(&self, cell_index: usize) -> Option<&Cell> {
+    fn get_cell_by_index(&self, cell_index: usize) -> Cell {
         if cell_index < 1 || cell_index > self.cells.len() {
-            return None;
+            return EMPTY;
         };
-        Some(&self.cells[cell_index - 1])
-    }
-
-    /// Returns a mutable reference to the cell at cell_index (which is written in self.data)
-    fn get_cell_from_cells_mut(&mut self, cell_index: usize) -> Option<&mut Cell> {
-        if cell_index < 1 || cell_index > self.cells.len() {
-            return None;
-        };
-        Some(&mut self.cells[cell_index - 1])
+        self.cells[cell_index - 1]
     }
 
     /// Returns a reference to the cell at this position
-    pub fn get_cell(&self, pos: IVec2) -> Option<&Cell> {
+    pub fn get_cell_by_pos(&self, pos: IVec2) -> Cell {
         if !self.is_in_bounds(pos) {
-            None
+            WALL
         } else {
             let cell_idx = self.get_data_at_pos(pos);
             if cell_idx == 0 {
-                return None;
-            };
-            self.get_cell_from_cells(cell_idx)
+                EMPTY
+            } else {
+                self.get_cell_by_index(cell_idx)
+            }
         }
-    }
-
-    /// Returns a mutable reference to the cell at this position
-    pub fn get_cell_mut(&mut self, pos: IVec2) -> Option<&mut Cell> {
-        if !self.is_in_bounds(pos) {
-            None
-        } else {
-            let cell_idx = self.get_data_at_pos(pos);
-            if cell_idx == 0 {
-                return None;
-            };
-            self.get_cell_from_cells_mut(cell_idx)
-        }
-    }
-
-    /// Returns a reference to the cell based on cell_index
-    pub fn get_cell_by_cellindex(&self, cell_index: usize) -> Option<&Cell> {
-        if cell_index > self.cells.len() {
-            return None;
-        };
-        self.get_cell_from_cells(cell_index)
-    }
-
-    /// Returns a mutable reference to the cell based on cell_index
-    pub fn get_cell_by_cellindex_mut(&mut self, cell_index: usize) -> Option<&mut Cell> {
-        if cell_index > self.cells.len() {
-            return None;
-        };
-        self.get_cell_from_cells_mut(cell_index)
     }
 
     /// Returns a reference to all the neighbor cells around a position
-    pub fn get_neighbor_cells(&self, pos: IVec2, radius: i32) -> Vec<Option<&Cell>> {
+    pub fn get_neighbor_cells(&self, pos: IVec2, radius: i32) -> Vec<Cell> {
+        let mut neighbors = Vec::with_capacity(4);
         if radius == 1 {
             let left = IVec2::new(1, 0);
             let down = IVec2::new(0, 1);
-            return vec![self.get_cell(pos - left), self.get_cell(pos + left), self.get_cell(pos - down), self.get_cell(pos + down)];
-        };
-
-        let mut neighbors = vec![];
-        for y in pos.y-radius..=pos.y+radius {
-            for x in pos.x-radius..=pos.x+radius {
-                let cur_pos = IVec2::new(x, y);
-                neighbors.push(self.get_cell(cur_pos));
+            let mut n = self.get_cell_by_pos(pos - left);
+            if n != EMPTY && n != WALL {
+                neighbors.push(n);
+            };
+            n = self.get_cell_by_pos(pos + left);
+            if n != EMPTY && n != WALL {
+                neighbors.push(n);
+            };
+            n = self.get_cell_by_pos(pos - down);
+            if n != EMPTY && n != WALL {
+                neighbors.push(n);
+            };
+            n = self.get_cell_by_pos(pos + down);
+            if n != EMPTY && n != WALL {
+                neighbors.push(n);
+            };
+        } else {
+            for y in pos.y-radius..=pos.y+radius {
+                for x in pos.x-radius..=pos.x+radius {
+                    let cur_pos = IVec2::new(x, y);
+                    let neigh = self.get_cell_by_pos(cur_pos);
+                    if neigh != EMPTY && neigh != WALL {
+                        neighbors.push(neigh);
+                    };
+                };
             };
         };
-        neighbors
+        return neighbors;
     }
 
     /// Appends the cell to self.cells and updates self.data with its index
@@ -188,7 +173,7 @@ impl Matrix {
         let cell_at_pos = self.get_data_at_pos(cell.pos);
         // If there is already a cell at that position, replace that cell in self.cells with the new cell
         if cell_at_pos != 0 {
-            let _ = std::mem::replace(self.get_cell_from_cells_mut(cell_at_pos).unwrap(), cell);
+            let _ = std::mem::replace(&mut self.get_cell_by_index(cell_at_pos), cell);
         } else {
             let c_idx = self.cell_idx(cell.pos);
             self.cells.push(cell);
@@ -203,6 +188,9 @@ impl Matrix {
         };
         let cell_index = self.get_data_at_pos(cellpos);
         let data_idx = self.cell_idx(cellpos);
+        if data_idx >= self.data.len() {
+            return;
+        };
         self.data[data_idx] = 0;
         self.set_chunk_cluster_active(cellpos);
         let cell_to_remove_idx = cell_index - 1;
@@ -210,12 +198,26 @@ impl Matrix {
             self.cells.remove(cell_to_remove_idx);
             return;
         };
-        if self.get_cell_from_cells(cell_index).is_some() {
+        let cell = self.get_cell_by_index(cell_index);
+        if cell != EMPTY && cell != WALL {
             let last_cell_pos = self.cells.last().unwrap().pos;
             let idx_of_last_cell_in_data = self.cell_idx(last_cell_pos);
             self.data[idx_of_last_cell_in_data] = cell_index;
             self.cells.swap_remove(cell_to_remove_idx);
         };
+    }
+
+    pub fn set_cell(&mut self, cell_index: usize, cell: Cell) {
+        self.cells[cell_index] = cell;
+    }
+
+    pub fn update_cell(&mut self, cell: Cell) {
+        let i = self.cell_idx(cell.pos);
+        let celldata = self.data[i];
+        if celldata == 0 {
+            return;
+        };
+        self.cells[celldata - 1] = cell;
     }
 
     /// Places a cell at specified pos with the material given
@@ -231,10 +233,10 @@ impl Matrix {
     }
 
     /// Places a cell which is located at cellpos at the specified target position (pos)
-    pub fn set_cell_by_pos(&mut self, pos: IVec2, cellpos: IVec2, swap: bool) {
+    pub fn set_cell_by_pos(&mut self, pos: IVec2, cellpos: IVec2, swap: bool) -> Cell {
         let data_at_cellpos = self.get_data_at_pos(cellpos);
         if data_at_cellpos == 0 {
-            return;
+            return EMPTY;
         };
 
         // Index of the cell inside self.data
@@ -243,11 +245,12 @@ impl Matrix {
         let target_pos_index = self.cell_idx(pos);
         let data_at_targetpos = self.get_data_at_pos(pos);
         
-        let cell = self.get_cell_from_cells_mut(data_at_cellpos).unwrap();
+        let mut cell = self.get_cell_by_index(data_at_cellpos);
         cell.pos = pos;
         let cellmat = cell.material;
         let _cell_velocity = cell.velocity;
         self.data[target_pos_index] = data_at_cellpos;
+        self.cells[data_at_cellpos - 1] = cell;
 
         // Target cell is empty
         if data_at_targetpos == 0 || !swap {
@@ -255,13 +258,12 @@ impl Matrix {
                 self.data[cell_pos_index] = 0;
             };
         } else {
-            let target_cell = self.get_cell_from_cells_mut(data_at_targetpos).unwrap();
-            let target_cellmat = target_cell.material;
-            
-            if cellmat == target_cellmat {
-                return;
+            let mut target_cell = self.get_cell_by_index(data_at_targetpos);
+            if cellmat == target_cell.material {
+                return cell;
             };
             target_cell.pos = cellpos;
+            self.cells[data_at_targetpos - 1] = target_cell;
             self.data[cell_pos_index] = data_at_targetpos;
         };
         
@@ -286,7 +288,7 @@ impl Matrix {
                 self.set_chunk_active(pos + IVec2::new(0, CHUNK_SIZE_I32));
             }
         };
-
+        cell
         //self.set_chunk_active(pos + cell_velocity.round().as_ivec2())
     }
 
@@ -304,12 +306,12 @@ impl Matrix {
             for x in pos.x-lower..pos.x+upper {
                 let cur_pos = IVec2::new(x, y);
                 if self.brush.place_fire {
-                    if let Some(c) = self.get_cell_mut(cur_pos) {
-                        if c.material.get_flammability() > 0.0 {
-                            c.is_on_fire = true;
-                        };
-                        self.set_chunk_active(cur_pos);
+                    let mut c = self.get_cell_by_pos(cur_pos);
+                    if c.material.get_flammability() > 0.0 {
+                        c.is_on_fire = true;
+                        self.update_cell(c);
                     };
+                    self.set_chunk_active(cur_pos);
                 } else {
                     self.set_cell_material(cur_pos, material, false);
                 };
@@ -348,21 +350,45 @@ impl Matrix {
         //     let i = *i;
         //     cell_handler::handle_cell(self, i.0, i.1);
         // });
-
-
-        let x_range: Vec<i32> = if self.update_left {
-            (0..w).collect()
-        } else {
-            (0..w).rev().collect()
+        
+        let len = self.cells.len();
+        let range = match self.update_left {
+            true => (0..len).collect::<Vec<usize>>(),
+            false => (0..len).rev().collect::<Vec<usize>>(),
         };
 
-        for y in (0..h).rev() {
-            for x in &x_range {
-            //x_range.par_iter().for_each(|x| {
-                self.step_all(*x, y);
-            //});
+        let cells_to_update: Vec<Cell> = range
+            .into_par_iter().map(|i| {
+                self.cells[i]
+            }).filter(|cell| {
+                let chunk_pos = cell.pos / CHUNK_SIZE_VEC;
+                if !self.chunk_in_bounds(chunk_pos) {
+                    return false;
+                };
+                let chunk_index = chunk_pos.x as usize + chunk_pos.y as usize * NUM_CHUNKS_X;
+                let cur_chunk = &self.chunks[chunk_index];
+                cur_chunk.should_step
+            })
+        .collect();
+        
+        for cell in cells_to_update {
+            let mut cell = self.get_cell_by_pos(cell.pos);
+            if cell == EMPTY || cell == WALL {
+                continue;
             };
+            let hp = cell.hp;
+            cell.update();
+            cell.processed_this_frame = true;
+            if cell.hp != hp || cell.is_on_fire || cell.was_on_fire_last_frame {
+                self.set_chunk_cluster_active(cell.pos);
+            };
+            cell_handler::handle_cell(self, cell);
         };
+
+
+// TODO: Check adding/ removing cells results in panic, maybe because of update loop
+
+
         self.update_left = !self.update_left;
     }
 
@@ -383,16 +409,15 @@ impl Matrix {
             if cell_idx == 0 {
                 return;
             };
-            if let Some(cell) = self.get_cell_by_cellindex_mut(cell_idx) {
-                if !cell.processed_this_frame {
-                    let hp = cell.hp;
-                    cell.update();
-                    cell.processed_this_frame = true;
-                    if cell.hp != hp || cell.is_on_fire || cell.was_on_fire_last_frame {
-                        self.set_chunk_cluster_active(cur_pos);
-                    };
-                    cell_handler::handle_cell(self, cell_idx, chunk_index);
+            let mut cell = self.get_cell_by_index(cell_idx);
+            if !cell.processed_this_frame {
+                let hp = cell.hp;
+                cell.update();
+                cell.processed_this_frame = true;
+                if cell.hp != hp || cell.is_on_fire || cell.was_on_fire_last_frame {
+                    self.set_chunk_cluster_active(cur_pos);
                 };
+                cell_handler::handle_cell(self, cell);
             };
         };
     }
@@ -407,12 +432,10 @@ impl Matrix {
             std::ptr::write_bytes(screen.as_mut_ptr(), 0, screen.len());
         };
 
-        let sc = RwLock::new(screen);
-
-        self.cells.par_iter().for_each(|c| {
-            let mut draw_color = c.color;
+        for cell in self.cells.iter() {
+            let mut draw_color = cell.color;
             
-            let chunk_pos = c.pos / CHUNK_SIZE_VEC;
+            let chunk_pos = cell.pos / CHUNK_SIZE_VEC;
             if self.chunk_in_bounds(chunk_pos) {
                 let chunk = &self.chunks[(chunk_pos.x as usize + chunk_pos.y as usize * NUM_CHUNKS_X)];
                 if self.debug_draw && chunk.should_step {
@@ -420,13 +443,13 @@ impl Matrix {
                 };
             };
     
-            let idx = self.cell_idx(c.pos) * 4;
-            let pixel_color = &mut sc.write().unwrap()[idx..idx+4];
+            let idx = self.cell_idx(cell.pos) * 4;
+            let pixel_color = &mut screen[idx..idx+4];
             let color = [(draw_color.r * 255.0) as u8, (draw_color.g * 255.0) as u8, (draw_color.b * 255.0) as u8, (draw_color.a * 255.0) as u8];
             if pixel_color != color {
                 pixel_color.copy_from_slice(&color);
             };
-        });
+        }
     }
 
     /// Draws a line with the specified material

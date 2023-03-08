@@ -30,8 +30,8 @@ pub use pixels::wgpu::Color;
 pub mod renderer;
 pub use renderer::NoiseRenderer;
 
-pub const CHUNK_SIZE: usize = 32;
-const NUM_CHUNKS: u32 = 16;//8 - 160, 16 - 80
+pub const CHUNK_SIZE: usize = 16;
+const NUM_CHUNKS: u32 = 32;//8 - 160, 16 - 80
 pub const WIDTH: u32 = CHUNK_SIZE as u32 * NUM_CHUNKS;//
 pub const HEIGHT: u32 = CHUNK_SIZE as u32 * NUM_CHUNKS;
 pub const SCALE: f64 = 2.0;
@@ -45,6 +45,8 @@ pub fn gen_range(min: f32, max: f32) -> f32 {
     return min + unsafe{&mut RNG}.f32() * max;
 }
 
+const EMPTY: Cell = Cell::new(glam::IVec2::new(0, 0), Material::Empty);
+const WALL: Cell = Cell::new(glam::IVec2::new(0, 0), Material::Empty);
 
 //pub type RngThr<'a> = std::sync::Arc<std::sync::Mutex<&'a mut rand::rngs::ThreadRng>>;
 

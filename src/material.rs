@@ -26,7 +26,7 @@ pub enum Material {
 }
 
 impl Material {
-    pub fn get_type(&self) -> MaterialType {
+    pub const fn get_type(&self) -> MaterialType {
         match self {
             Material::Empty => MaterialType::Empty,
             Material::Sand => MaterialType::MovableSolid,
@@ -39,7 +39,7 @@ impl Material {
         }
     }
 
-    pub fn get_color(&self) -> Color {
+    pub const fn get_color(&self) -> Color {
         match self {
             Material::Empty => Color::GREEN,
             Material::Sand => Color { r: 1.0, g: 1.0, b: 0.0, a: 1.0 },
@@ -51,7 +51,7 @@ impl Material {
         }
     }
 
-    pub fn get_hp(&self) -> u64 {
+    pub const fn get_hp(&self) -> u64 {
         match self {
             Material::Empty => 0,
             Material::Sand => 10,
@@ -63,7 +63,7 @@ impl Material {
         }
     }
 
-    pub fn get_density(&self) -> u64 {
+    pub const fn get_density(&self) -> u64 {
         match self {
             Material::Empty => 0,
             Material::Sand => 300,
@@ -75,7 +75,7 @@ impl Material {
         }
     }
 
-    pub fn get_dispersion(&self) -> u8 {
+    pub const fn get_dispersion(&self) -> u8 {
         match self {
             Material::Sand => 1,
             Material::Dirt => 1,
@@ -85,7 +85,7 @@ impl Material {
         }
     }
 
-    pub fn get_intertial_resistance(&self) -> f32 {
+    pub const fn get_intertial_resistance(&self) -> f32 {
         match self {
             Material::Sand => 0.1,
             Material::Dirt => 0.9,
@@ -93,7 +93,7 @@ impl Material {
         }
     }
 
-    pub fn get_flammability(&self) -> f32 {
+    pub const fn get_flammability(&self) -> f32 {
         match self {
             Material::Smoke => 0.5,
             Material::Dirt => 0.2,
@@ -102,7 +102,7 @@ impl Material {
         }
     }
 
-    pub fn extinguishes_fire(&self) -> (bool, f32) {
+    pub const fn extinguishes_fire(&self) -> (bool, f32) {
         match self {
             Material::Water => (true, 0.5),
             Material::Sand => (true, 1.0),
@@ -110,7 +110,7 @@ impl Material {
         }
     }
 
-    pub fn protects_from_fire(&self) -> bool {
+    pub const fn protects_from_fire(&self) -> bool {
         match self {
             Material::Water => true,
             _ => false,

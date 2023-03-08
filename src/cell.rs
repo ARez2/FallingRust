@@ -6,7 +6,7 @@ use glam::{IVec2, Vec2};
 use crate::{Material, MaterialType, rand_multiplier, Rng};
 
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Copy)]
 pub struct Cell {
     pub pos: IVec2,//2xi32
     prev_pos: IVec2,//2xi32
@@ -24,7 +24,7 @@ pub struct Cell {
 
 impl Cell {
     /// Creates a new cell with the specified material
-    pub fn new(pos: IVec2, material: Material) -> Self {
+    pub const fn new(pos: IVec2, material: Material) -> Self {
         Self {
             pos,
             prev_pos: pos,
@@ -60,14 +60,16 @@ impl Cell {
     }
 
     /// Tries to set a neighbouring cells "is_free_falling" to true based on inertia and that cells intertial resistance
-    pub fn attempt_free_fall(&mut self) {
+    pub fn attempt_free_fall(&mut self) -> bool {
         if self.material.get_type() == MaterialType::MovableSolid {
             let chance = self.material.get_intertial_resistance();
             let rng = gen_range(0.0, 1.0);
             if rng > chance {
                 self.is_free_falling = true;
+                return true;
             };
         };
+        return false;
     }
 
     pub fn set_color(&mut self, color: Color) {

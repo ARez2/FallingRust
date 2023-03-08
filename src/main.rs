@@ -67,6 +67,11 @@ fn main() -> Result<(), Error> {
 
     let mut ui_info = UIInfo::new();
     let mut matrix = Matrix::new_empty(WIDTH as usize, HEIGHT as usize);
+    for y in 100..101 {
+        for x in 100..101 {
+            matrix.set_cell_material(IVec2::new(x, y), falling_rust::Material::Sand, false);
+        }
+    }
     let mut paused = false;
 
     let mut last_update = std::time::SystemTime::now();
